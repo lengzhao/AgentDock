@@ -186,8 +186,9 @@ type Paths struct {
 	Home string
 	// InstanceDir is the runtime root: agent workspace, session logs and state.
 	InstanceDir string
-	ConfigFile  string
-	StateDir    string
+	ConfigFile       string
+	AgentPresetsFile string
+	StateDir         string
 	LogDir      string
 	CacheDir    string
 	RunDir      string
@@ -199,8 +200,9 @@ func ResolvePaths(home string) Paths {
 	return Paths{
 		Home:        home,
 		InstanceDir: instance,
-		ConfigFile:  filepath.Join(home, "config.yaml"),
-		StateDir:    filepath.Join(instance, "state"),
+		ConfigFile:       filepath.Join(home, "config.yaml"),
+		AgentPresetsFile: filepath.Join(home, "agent-presets.json"),
+		StateDir:         filepath.Join(instance, "state"),
 		LogDir:      filepath.Join(home, "logs"),
 		CacheDir:    filepath.Join(home, "cache"),
 		RunDir:      filepath.Join(home, "run"),

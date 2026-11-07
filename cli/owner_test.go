@@ -45,7 +45,7 @@ func TestSetupReportsAutomaticallyBoundOwnerAsComplete(t *testing.T) {
 	var out bytes.Buffer
 	cmd := newSetupCmd()
 	cmd.SetOut(&out)
-	cmd.SetArgs([]string{"--app-id", "test-app", "--app-secret-stdin", "--agent", "codex-acp", "--from-catalog=false"})
+	cmd.SetArgs([]string{"--app-id", "test-app", "--app-secret-stdin", "--agent", "codex"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}

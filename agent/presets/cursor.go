@@ -1,4 +1,4 @@
-package cli
+package presets
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 // cursorPreset selects the user's installed native Cursor CLI. The ACP registry
 // archive's relative cmd is not an installed executable and must not replace it.
-func cursorPreset() config.Agent {
+func cursorPreset() (config.Agent, error) {
 	executable, err := exec.LookPath("cursor-agent")
 	if err != nil {
 		executable = "cursor-agent"
@@ -19,8 +19,9 @@ func cursorPreset() config.Agent {
 			executable = candidate
 		}
 	}
-	return config.Agent{ID: "cursor", Command: []string{executable, "acp"}, AuthMethod: "cursor_login"}
+	return config.Agent{ID: "cursor", Command: []string{executable, "acp"}, AuthMethod: "cursor_login"}, nil
 }
+
 func isCursorACP(executable string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

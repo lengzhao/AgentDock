@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lengzhao/AgentDock/catalog"
 	"github.com/lengzhao/AgentDock/config"
 )
 
-func installFakeCursor(t *testing.T) string {
+func installFakeCursorCLI(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cursor-agent")
@@ -22,23 +21,9 @@ func installFakeCursor(t *testing.T) string {
 	t.Setenv("PATH", dir)
 	return path
 }
-func TestCursorUsesInstalledNativeACPAndAuthentication(t *testing.T) {
-	path := installFakeCursor(t)
-	for _, id := range []string{"cursor", "cursor-acp"} {
-		entry, err := resolveAgent(catalog.Index{}, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if entry.ID != "cursor" || !reflect.DeepEqual(entry.Command, []string{path, "acp"}) || entry.AuthMethod != "cursor_login" {
-			t.Fatalf("Cursor preset %+v", entry)
-		}
-	}
-	if loginHint("cursor") != "agent login (Cursor CLI)" {
-		t.Fatal("missing Cursor login hint")
-	}
-}
+
 func TestAgentsAddCursorPreservesOtherAgentsAndPlatforms(t *testing.T) {
-	installFakeCursor(t)
+	installFakeCursorCLI(t)
 	previous := rootEnv
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}
 	t.Cleanup(func() { rootEnv = previous })
@@ -71,33 +56,6 @@ func TestAgentsAddCursorPreservesOtherAgentsAndPlatforms(t *testing.T) {
 	actual, err = config.Load(rootEnv.paths.ConfigFile)
 	if err != nil || len(actual.Agents) != 2 {
 		t.Fatal("duplicate agent added")
-	}
-}
-
-func TestCursorVerifiesGenericAgentAlias(t *testing.T) {
-	for _, tc := range []struct {
-		name, help string
-		accept     bool
-	}{{"Cursor alias", "Start the Cursor Agent as an ACP server", true}, {"Unrelated binary", "different program", false}} {
-		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "agent")
-			if err := os.WriteFile(path, []byte("#!/bin/sh\necho '"+tc.help+"'\n"), 0700); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", dir)
-			preset := cursorPreset()
-			if (preset.Command[0] == path) != tc.accept {
-				t.Fatalf("wrong alias selection: %v", preset.Command)
-			}
-		})
-	}
-}
-func TestCursorIgnoresUninstalledCatalogArchiveCommand(t *testing.T) {
-	path := installFakeCursor(t)
-	result, err := resolveAgent(catalog.Index{Agents: []catalog.Entry{{ID: "cursor", Version: "test"}}}, "cursor")
-	if err != nil || result.Command[0] != path {
-		t.Fatalf("native Cursor was replaced by registry archive: %v %v", result, err)
 	}
 }
 
@@ -141,7 +99,6 @@ func TestAgentsAddPreservesConcurrentConfigUpdate(t *testing.T) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	// Same writer lock as /env. This change lands while version probing is in progress.
 	cfg.Agents[0].Env = map[string]string{"NEW_SETTING": "latest"}
 	if err := config.Save(rootEnv.paths.ConfigFile, cfg); err != nil {
 		t.Fatal(err)
@@ -162,7 +119,7 @@ func TestAgentsAddPreservesConcurrentConfigUpdate(t *testing.T) {
 }
 
 func TestExistingCursorDefaultDoesNotDependOnCurrentPath(t *testing.T) {
-	path := installFakeCursor(t)
+	path := installFakeCursorCLI(t)
 	t.Setenv("PATH", t.TempDir())
 	previous := rootEnv
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}

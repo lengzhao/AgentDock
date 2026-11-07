@@ -3,14 +3,14 @@
 在 Lark 私聊中，由已绑定 owner 使用统一 `/env` 命令：
 
 ```text
-/env list claude-acp
-/env set claude-acp CLAUDE_CODE_AUTO_MODE_SERVER=0
-/env set claude-acp ANTHROPIC_AUTH_TOKEN=<值>
-/env check claude-acp ANTHROPIC_AUTH_TOKEN
-/env unset claude-acp ANTHROPIC_AUTH_TOKEN
+/env list claude
+/env set claude CLAUDE_CODE_AUTO_MODE_SERVER=0
+/env set claude ANTHROPIC_AUTH_TOKEN=<值>
+/env check claude ANTHROPIC_AUTH_TOKEN
+/env unset claude ANTHROPIC_AUTH_TOKEN
 ```
 
-将 `claude-acp` 换成 `codex-acp` 可管理另一个 Agent。变量名按插件文档填写；同一个 Agent 加载的插件共享其进程环境。值中的空格、等号和引号按原样保存，不需要加 shell 引号。
+将 `claude` 换成 `codex` 可管理另一个 Agent。`id` 须与 `config.yaml` 里该 Agent 的 `id` 一致；旧安装若仍为 `claude-acp`，命令中也用 `claude-acp` 即可。变量名按插件文档填写；同一个 Agent 加载的插件共享其进程环境。值中的空格、等号和引号按原样保存，不需要加 shell 引号。
 
 所有通过 `/env set` 写入的值都存入当前用户 Keychain。只有成功写入并回读验证后，配置文件才会原子更新为 `keyring://...` 引用。每次更新使用新的凭据账户，以免配置保存失败时覆盖正在使用的旧值。
 

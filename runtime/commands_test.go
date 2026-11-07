@@ -16,36 +16,55 @@ func (namedTestCommand) Description() string { return "test" }
 func (c namedTestCommand) CommandExec(_ context.Context, args string) (string, error) {
 	return string(c) + ":" + args, nil
 }
-func (namedTestCommand) SanitizeArgsForLog(string) string { return "redacted" }
 
-type testACPProvider struct{}
-
-func (testACPProvider) Commands() []agentkit.Command {
-	return []agentkit.Command{namedTestCommand("acp-claude-acp"), namedTestCommand("acp-codex-acp"), namedTestCommand("acp-cursor")}
+type instanceIDProvider struct {
+	id   string
+	name string
 }
 
-func TestShortACPCommandsDispatch(t *testing.T) {
+func (p instanceIDProvider) CommandInstanceID() string { return p.id }
+func (p instanceIDProvider) Commands() []agentkit.Command {
+	return []agentkit.Command{namedTestCommand(p.name)}
+}
+
+func TestScopedCommandsPrivateFilter(t *testing.T) {
 	registry, err := command.NewFromProviders(command.Config{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &scopedCommands{registry: registry}
-	if err := s.SetCommands([]agentkit.CommandProvider{testACPProvider{}}); err != nil {
+	s := &scopedCommands{
+		config: scopedCommandsConfig{
+			Provider:        "env.weixin",
+			ScopedProviders: []string{"env.default", "env.weixin"},
+		},
+		registry: registry,
+	}
+	err = s.SetCommands([]agentkit.CommandProvider{
+		instanceIDProvider{id: "env.default", name: "env"},
+		instanceIDProvider{id: "env.weixin", name: "env"},
+		instanceIDProvider{id: "runner.default", name: "me"},
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	for name, original := range map[string]string{"acp-claude": "acp-claude-acp", "acp-codex": "acp-codex-acp", "acp-cursor": "acp-cursor"} {
-		got, err := s.Dispatch(ctx, name, "model")
-		if err != nil || got != original+":model" {
-			t.Fatalf("/%s: got %q, %v", name, got, err)
+	envCount := 0
+	for _, cmd := range s.List(ctx) {
+		if cmd.Name() == "env" {
+			envCount++
 		}
 	}
-	for _, cmd := range s.List(ctx) {
-		if cmd.Name() == "acp-claude-acp" || cmd.Name() == "acp-codex-acp" {
-			t.Fatalf("old command in help: %s", cmd.Name())
-		}
-		if cmd.Name() == "acp-claude" && cmd.(agentkit.CommandLogSanitizer).SanitizeArgsForLog("secret") != "redacted" {
-			t.Fatal("lost log redaction")
-		}
+	if envCount != 1 {
+		t.Fatalf("env commands: want 1, got %d", envCount)
+	}
+	got, err := s.Dispatch(ctx, "env", "")
+	if err != nil || got != "env:" {
+		t.Fatalf("env dispatch: %q, %v", got, err)
+	}
+	if _, err := s.Dispatch(ctx, "me", ""); err != nil {
+		t.Fatalf("shared command: %v", err)
+	}
+	if counts := len(s.List(ctx)); counts < 2 {
+		t.Fatalf("list too short: %d", counts)
 	}
 }

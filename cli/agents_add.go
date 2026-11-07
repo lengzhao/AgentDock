@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/lengzhao/AgentDock/agent"
-	"github.com/lengzhao/AgentDock/catalog"
 	"github.com/lengzhao/AgentDock/config"
 	"github.com/spf13/cobra"
 )
@@ -17,10 +16,7 @@ func newAgentsAddCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		id := args[0]
-		if id == "cursor-acp" {
-			id = "cursor"
-		}
+		id := agent.NormalizeID(args[0])
 		var added config.Agent
 		foundExisting := false
 		for _, existing := range cfg.Agents {
@@ -31,7 +27,7 @@ func newAgentsAddCmd() *cobra.Command {
 			}
 		}
 		if !foundExisting {
-			added, err = resolveAgent(catalog.Index{}, id)
+			added, err = agent.Resolve(id)
 			if err != nil {
 				return err
 			}
@@ -70,7 +66,7 @@ func newAgentsAddCmd() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "Agent %s is already configured.\n", added.ID)
 			return nil
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Added agent %s. Login: %s. Restart the service to load it.\n", added.ID, loginHint(added.ID))
+		fmt.Fprintf(cmd.OutOrStdout(), "Added agent %s. Login: %s. Restart the service to load it.\n", added.ID, agent.LoginHint(added.ID))
 		return nil
 	}}
 	cmd.Flags().BoolVar(&makeDefault, "default", false, "make this the default agent")

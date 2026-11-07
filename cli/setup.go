@@ -15,7 +15,6 @@ import (
 
 	"github.com/lengzhao/AgentDock/agent"
 	"github.com/lengzhao/AgentDock/assembly"
-	"github.com/lengzhao/AgentDock/catalog"
 	"github.com/lengzhao/AgentDock/config"
 	"github.com/lengzhao/AgentDock/credentials"
 	"github.com/lengzhao/AgentDock/platform"
@@ -30,7 +29,6 @@ type setupFlags struct {
 	secretStdin  bool
 	allowFrom    string
 	nonInteract  bool
-	fromCatalog  bool
 	noAddons     bool
 	tenantBrand  string
 }
@@ -51,7 +49,7 @@ holds references.`,
 		},
 	}
 	f := cmd.Flags()
-	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude-acp,codex-acp,cursor")
+	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude,codex,cursor")
 	f.StringVar(&flags.platformKind, "platform", "", "platform: lark, feishu, weixin (default: existing platform or lark)")
 	f.StringVar(&flags.authPlugin, "platform-auth", "", "registered platform authentication plugin kind")
 	f.StringVar(&flags.appID, "app-id", "", "existing platform app id (skips catalog selection for the platform)")
@@ -60,7 +58,6 @@ holds references.`,
 	f.BoolVar(&flags.secretStdin, "app-secret-stdin", false, "read the app secret from stdin instead of prompting")
 	f.StringVar(&flags.allowFrom, "allow-from", "", "comma-separated open_id allowlist for inbound messages")
 	f.BoolVar(&flags.nonInteract, "non-interactive", false, "never prompt; fail when a required value is missing")
-	f.BoolVar(&flags.fromCatalog, "from-catalog", true, "resolve agent commands from the ACP registry catalog")
 	f.StringVar(&flags.tenantBrand, "tenant-brand", "", "confirmation page edition: feishu (China) or lark (international); defaults to --platform")
 	f.BoolVar(&flags.noAddons, "no-addons", false, "do not prefill scopes/events on the registration page; configure them manually")
 	return cmd
@@ -160,34 +157,20 @@ func stepAgents(ctx context.Context, out io.Writer, cfg *config.Config, flags *s
 		return nil
 	}
 	if len(ids) == 0 {
-		ids = []string{"claude-acp", "codex-acp"}
+		ids = []string{"claude", "codex"}
 		if flags.nonInteract {
 			return fmt.Errorf("--agent is required with --non-interactive")
 		}
 		fmt.Fprintf(out, "No --agent given; defaulting to %s.\n", strings.Join(ids, ", "))
 	}
 
-	var index catalog.Index
-	if flags.fromCatalog {
-		src, err := rootEnv.catalogSource()
-		if err != nil {
-			return err
-		}
-		idx, err := src.Fetch(ctx)
-		if err != nil {
-			warnf("could not load the ACP catalog (%v); using built-in adapter commands", err)
-		} else {
-			index = idx
-		}
-	}
-
 	agents := make([]config.Agent, 0, len(ids))
 	for _, id := range ids {
-		agent, err := resolveAgent(index, id)
+		resolved, err := agent.Resolve(id)
 		if err != nil {
 			return err
 		}
-		agents = append(agents, agent)
+		agents = append(agents, resolved)
 	}
 	cfg.Agents = agents
 	cfg.Runtime.DefaultAgent = agents[0].ID
@@ -218,61 +201,10 @@ func stepAgents(ctx context.Context, out io.Writer, cfg *config.Config, flags *s
 	}
 	loginSteps := make([]string, 0, len(infos))
 	for _, info := range infos {
-		loginSteps = append(loginSteps, fmt.Sprintf("  %s: %s", info.ID, loginHint(info.ID)))
+		loginSteps = append(loginSteps, fmt.Sprintf("  %s: %s", info.ID, agent.LoginHint(info.ID)))
 	}
 	fmt.Fprintf(out, "Log in to each agent in this terminal before using it:\n%s\n", strings.Join(loginSteps, "\n"))
 	return nil
-}
-
-// loginHint names the upstream CLI login command without running it: logging in
-// is an interactive, user-owned step, and copying its credentials is not allowed.
-func loginHint(id string) string {
-	switch id {
-	case "claude-acp":
-		return "claude /login (Claude Code CLI)"
-	case "codex-acp":
-		return "codex login (Codex CLI)"
-	case "cursor", "cursor-acp":
-		return "agent login (Cursor CLI)"
-	case "kimi":
-		return "kimi login"
-	case "opencode":
-		return "opencode auth login"
-	default:
-		return "follow the adapter's own login flow"
-	}
-}
-
-// builtinAgents are fallbacks used when the catalog cannot be reached. Versions
-// are pinned so a restart cannot silently change behaviour.
-var builtinAgents = map[string][]string{
-	"claude-acp": {"npx", "-y", "@agentclientprotocol/claude-agent-acp@0.101.0"},
-	"codex-acp":  {"npx", "-y", "@agentclientprotocol/codex-acp@2.5.0"},
-	"kimi":       {"kimi", "--acp"},
-	"opencode":   {"opencode", "acp"},
-}
-
-func resolveAgent(index catalog.Index, id string) (config.Agent, error) {
-	if id == "cursor" || id == "cursor-acp" {
-		return cursorPreset(), nil
-	}
-	if entry, ok := index.Lookup(id); ok {
-		argv, kind, err := entry.Command()
-		if err != nil {
-			return config.Agent{}, fmt.Errorf("agent %q: %w", id, err)
-		}
-		if warning := entry.LicenseWarning(); warning != "" {
-			warnf("agent %s: %s", id, warning)
-		}
-		if npm := entry.Distribution.NPM; npm != nil && kind == "npm" && strings.Contains(npm.Package, "latest") {
-			warnf("agent %s is distributed as @latest; pin a version for reproducible restarts", id)
-		}
-		return config.Agent{ID: id, Command: argv}, nil
-	}
-	if argv, ok := builtinAgents[id]; ok {
-		return config.Agent{ID: id, Command: argv}, nil
-	}
-	return config.Agent{}, fmt.Errorf("unknown agent %q: not in the ACP catalog and no built-in definition", id)
 }
 
 func stepPlatform(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store, state *setup.State) error {

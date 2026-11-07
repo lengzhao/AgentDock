@@ -115,6 +115,8 @@ runner, result, err := runtime.BuildWithOverrides(ctx, cfg, layout, resolver,
 
 替换节点时显式提供完整 use/config/deps；依赖可以引用新增节点。调用方负责 runner.Run/Stop 生命周期。CLI 的 --service-plugin 和 --catalog-plugin 分别接收已注册的服务及目录 kind；默认启动参数会随服务安装保存。更换插件参数后需重新安装服务以更新启动参数。
 
+默认适配器清单内嵌于 `agent/presets/default.json`；首次 CLI 启动会在安装目录（默认 `~/.agentdock/agent-presets.json`）写入该文件，可直接编辑以新增适配器或钉死版本，无需改代码。`setup` / `agents add` 只读该预设（及内置 `resolver`），不再从 ACP registry 拉取启动命令。`agentdock catalog` 仍可浏览官方 registry 作参考。字段：`id`、`aliases`、`loginHint`、`offlineCommand`、`resolver`（内置如 `cursor`）、`authMethod`。CLI 入参 `*-acp` 在存在短名预设时自动归一。
+
 ## 微信平台与统一认证
 
 - platform.Authenticator：登录与 owner 解析的插件契约；Login 不负责存储。

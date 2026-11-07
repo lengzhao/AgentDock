@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/lengzhao/AgentDock/agent/presets"
 	"github.com/lengzhao/AgentDock/assembly"
 	"github.com/lengzhao/AgentDock/plugin"
 	"log/slog"
@@ -87,6 +88,12 @@ func newRootCmd() *cobra.Command {
 			}
 			rootEnv.home = abs
 			rootEnv.paths = config.ResolvePaths(abs)
+			if err := presets.EnsureUserFile(rootEnv.paths.AgentPresetsFile); err != nil {
+				return fmt.Errorf("agent presets: %w", err)
+			}
+			if err := presets.LoadFile(rootEnv.paths.AgentPresetsFile); err != nil {
+				return fmt.Errorf("%s: %w", rootEnv.paths.AgentPresetsFile, err)
+			}
 			configureLogging(rootEnv.verbose)
 			return nil
 		},

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "presets": [
+    {
+      "id": "claude",
+      "loginHint": "claude /login (Claude Code CLI)",
+      "offlineCommand": ["npx", "-y", "@agentclientprotocol/claude-agent-acp@0.101.0"]
+    },
+    {
+      "id": "codex",
+      "loginHint": "codex login (Codex CLI)",
+      "offlineCommand": ["npx", "-y", "@agentclientprotocol/codex-acp@2.5.0"]
+    },
+    {
+      "id": "cursor",
+      "loginHint": "agent login (Cursor CLI)",
+      "resolver": "cursor"
+    },
+    {
+      "id": "kimi",
+      "loginHint": "kimi login",
+      "offlineCommand": ["kimi", "--acp"]
+    },
+    {
+      "id": "opencode",
+      "loginHint": "opencode auth login",
+      "offlineCommand": ["opencode", "acp"]
+    }
+  ]
+}
