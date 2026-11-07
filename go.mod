@@ -3,12 +3,16 @@ module github.com/lengzhao/AgentDock
 go 1.26.1
 
 require (
+	github.com/larksuite/oapi-sdk-go/v3 v3.11.0
 	github.com/lengzhao/agentkit v0.4.45
 	github.com/lengzhao/pluginkit v0.1.6
+	github.com/mark3labs/mcp-go v1.0.0
+	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/spf13/cobra v1.10.2
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/term v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.36.2
 )
 
 require (
@@ -34,10 +38,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.11.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/larksuite/oapi-sdk-go/v3 v3.11.0 // indirect
-	github.com/mark3labs/mcp-go v1.0.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mdp/qrterminal/v3 v3.2.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
@@ -70,6 +71,5 @@ require (
 	modernc.org/libc v1.61.13 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.8.2 // indirect
-	modernc.org/sqlite v1.36.2 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )

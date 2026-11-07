@@ -44,3 +44,4 @@ go.work.sum
 
 # Local config overlays
 config.local.yaml
+.codegraph/
