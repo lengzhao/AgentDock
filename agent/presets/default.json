@@ -14,7 +14,8 @@
     {
       "id": "cursor",
       "loginHint": "agent login (Cursor CLI)",
-      "resolver": "cursor"
+      "offlineCommand": ["agent", "acp"],
+      "authMethod": "cursor_login"
     },
     {
       "id": "kimi",

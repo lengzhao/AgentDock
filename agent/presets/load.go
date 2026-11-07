@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/lengzhao/AgentDock/agent"
-	"github.com/lengzhao/AgentDock/config"
 )
 
 type document struct {
@@ -23,10 +22,7 @@ type presetEntry struct {
 	AuthMethod     string   `json:"authMethod,omitempty"`
 }
 
-var resolvers = map[string]func() (config.Agent, error){}
-
 func init() {
-	resolvers["cursor"] = cursorPreset
 	if err := loadBytes(defaultJSON); err != nil {
 		panic("agent presets: " + err.Error())
 	}
@@ -68,19 +64,15 @@ func loadBytes(raw []byte) error {
 		if entry.ID == "" {
 			return fmt.Errorf("agent preset entry missing id")
 		}
+		if entry.Resolver != "" {
+			return fmt.Errorf("agent preset %q: resolver %q was removed; use offlineCommand (see default.json)", entry.ID, entry.Resolver)
+		}
 		p := agent.Preset{
 			ID:             entry.ID,
 			Aliases:        entry.Aliases,
 			LoginHint:      entry.LoginHint,
 			OfflineCommand: entry.OfflineCommand,
 			AuthMethod:     entry.AuthMethod,
-		}
-		if entry.Resolver != "" {
-			resolve, ok := resolvers[entry.Resolver]
-			if !ok {
-				return fmt.Errorf("unknown agent preset resolver %q for %s", entry.Resolver, entry.ID)
-			}
-			p.Resolve = resolve
 		}
 		if err := agent.RegisterOrReplace(p); err != nil {
 			return err

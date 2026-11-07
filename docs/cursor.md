@@ -1,6 +1,6 @@
 # Cursor Agent
 
-AgentDock 使用 Cursor CLI 原生 ACP，不需要第三方适配器。优先选择本机 cursor-agent，写入绝对路径及 acp 参数；若仅存在 agent 别名，先检查其 ACP help 确认它属于 Cursor。不会使用 ACP registry 解压目录中的相对路径当作已安装程序。
+AgentDock 使用 Cursor CLI 原生 ACP，不需要第三方适配器。默认预设为 `cursor-agent acp`（依赖 PATH）；可在 `~/.agentdock/agent-presets.json` 把 `offlineCommand` 改成绝对路径，或使用不含 `cursor-agent` 的可执行文件路径。不会使用 ACP registry 解压目录中的相对路径当作已安装程序。
 
 ## 添加到已有安装
 

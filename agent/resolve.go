@@ -6,7 +6,7 @@ import (
 	"github.com/lengzhao/AgentDock/config"
 )
 
-// Resolve maps a preset id to config.Agent using agent-presets and built-in resolvers.
+// Resolve maps a preset id to config.Agent using the loaded agent-presets registry.
 func Resolve(id string) (config.Agent, error) {
 	id = NormalizeID(id)
 	p, ok := presetsByID[id]
