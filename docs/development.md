@@ -34,23 +34,23 @@ bin/agentdock service install
 
 | 模块 | 位置 | 说明 |
 |---|---|---|
-| CLI 命令树 | `internal/cli` | `setup` / `run` / `service` / `status` / `doctor` / `verify` / `catalog` / `agents` / `tasks` / `access` / `config` / `version` |
-| 配置 | `internal/config` | 模型 + 校验 + 原子写（0600）；`KnownFields` 拒绝未知字段；secret 只能写引用，裸值直接报错 |
-| 凭据槽位 | `internal/credentials` | `Store` 接口 + keyring（`zalando/go-keyring`，写后强制回读）+ memory；`Resolver` 支持 `keyring://svc/account` 与 `env:NAME` |
-| 服务槽位 | `internal/service` | `ServiceManager` 接口 + launchd 实现（plist 渲染、`bootstrap/bootout/kickstart/print` 语义归一化、拒绝把 secret 写进 plist） |
-| 后台环境 | `internal/cli/service_shell.go` | 查询用户账户登录 shell，用 `-l -i -c` 加载导出环境后 `exec` AgentDock；不把环境凭据或 PATH 快照写入 plist，参数按 shell 字面量转义 |
-| 运行装配 | `internal/runtime` | AgentDock 配置 → AgentKit 实例图；**唯一**出现 AgentKit kind 名的地方 |
-| 私聊话题 | `internal/runtime` | 默认启用 Lark/飞书 `dmThreadMode`：主界面新消息开启独立话题，话题内追问延续同一会话；默认 `sessionScope: thread` |
-| 适配器目录槽位 | `internal/catalog` | ACP registry：磁盘缓存、离线降级、binary 优先 npm、许可告警、白名单封装 |
-| 平台注册 | `internal/platform/lark` | 官方 `scene/registration` 扫码建应用（LARK-01），凭据入库并回读；拒绝/超时/取消给出可操作提示 |
-| 入站准入链 | `internal/access` → `internal/record` → `internal/verify` | 三层 `ingress.Policy` 装饰：先判所有者，再落任务记录（重复投递在此拒绝），最后记录校验 token |
-| 所有者绑定 | `internal/access`、`internal/platform/lark/owner.go`、`internal/cli/owner.go` | setup/run 首次查询当前应用 owner 的 open_id 并自动绑定；保留已有绑定；失败提示手动 `access bind`（15 分钟一次性 challenge）；未绑定期间拒绝消息。已有安装可用 `access bind --auto` |
-| 环境变量 slash | `internal/envslash`、`internal/runtime/env.go` | `/env list/set/check/unset <agent>`；仅 owner 私聊；值存 Keychain、配置只保存引用；命令日志脱敏；启动时解析并注入对应 Agent，重启生效 |
-| 端到端校验 | `internal/verify` | ingress 策略装饰器：只有被 owner 策略接受的入站消息里的 `AGENTDOCK-…` token 才会写 marker，连接成功但没收到消息不会误判为通过 |
-| Agent 检测 | `internal/agent` | 解析可执行文件 + 版本探测；区分 missing / broken / ready / unknown，**不声称登录有效** |
-| 运行记录 | `internal/state` + `internal/record` | SQLite（纯 Go `modernc.org/sqlite`）：任务状态、投递状态、启动时把非终态标为 interrupted、30 天清理。入站消息在 ingress 链上落 `accepted` 记录，键为 `安装\|平台\|实例\|事件 ID`，进程重启后仍能去重 |
-| 单实例 | `internal/lock` | flock；进程崩溃由内核释放，不留脏锁 |
-| 诊断 | `internal/doctor` | 分层检查 + 退出码 0/2/1 + `--json` |
+| CLI 命令树 | `cli` | `setup` / `run` / `service` / `status` / `doctor` / `verify` / `catalog` / `agents` / `tasks` / `access` / `config` / `version` |
+| 配置 | `config` | 模型 + 校验 + 原子写（0600）；`KnownFields` 拒绝未知字段；secret 只能写引用，裸值直接报错 |
+| 凭据槽位 | `credentials` | `Store` 接口 + keyring（`zalando/go-keyring`，写后强制回读）+ memory；`Resolver` 支持 `keyring://svc/account` 与 `env:NAME` |
+| 服务槽位 | `service` | `ServiceManager` 接口 + launchd 实现（plist 渲染、`bootstrap/bootout/kickstart/print` 语义归一化、拒绝把 secret 写进 plist） |
+| 后台环境 | `cli/service_shell.go` | 查询用户账户登录 shell，用 `-l -i -c` 加载导出环境后 `exec` AgentDock；不把环境凭据或 PATH 快照写入 plist，参数按 shell 字面量转义 |
+| 运行装配 | `runtime` | AgentDock 配置 → AgentKit 实例图；**唯一**出现 AgentKit kind 名的地方 |
+| 私聊话题 | `runtime` | 默认启用 Lark/飞书 `dmThreadMode`：主界面新消息开启独立话题，话题内追问延续同一会话；默认 `sessionScope: thread` |
+| 适配器目录槽位 | `catalog` | ACP registry：磁盘缓存、离线降级、binary 优先 npm、许可告警、白名单封装 |
+| 平台注册 | `platform/lark` | 官方 `scene/registration` 扫码建应用（LARK-01），凭据入库并回读；拒绝/超时/取消给出可操作提示 |
+| 入站准入链 | `access` → `record` → `verify` | 三层 `ingress.Policy` 装饰：先判所有者，再落任务记录（重复投递在此拒绝），最后记录校验 token |
+| 所有者绑定 | `access`、`platform/lark/owner.go`、`cli/owner.go` | setup/run 首次查询当前应用 owner 的 open_id 并自动绑定；保留已有绑定；失败提示手动 `access bind`（15 分钟一次性 challenge）；未绑定期间拒绝消息。已有安装可用 `access bind --auto` |
+| 环境变量 slash | `envslash`、`runtime/env.go` | `/env list/set/check/unset <agent>`；仅 owner 私聊；值存 Keychain、配置只保存引用；命令日志脱敏；启动时解析并注入对应 Agent，重启生效 |
+| 端到端校验 | `verify` | ingress 策略装饰器：只有被 owner 策略接受的入站消息里的 `AGENTDOCK-…` token 才会写 marker，连接成功但没收到消息不会误判为通过 |
+| Agent 检测 | `agent` | 解析可执行文件 + 版本探测；区分 missing / broken / ready / unknown，**不声称登录有效** |
+| 运行记录 | `state` + `record` | SQLite（纯 Go `modernc.org/sqlite`）：任务状态、投递状态、启动时把非终态标为 interrupted、30 天清理。入站消息在 ingress 链上落 `accepted` 记录，键为 `安装\|平台\|实例\|事件 ID`，进程重启后仍能去重 |
+| 单实例 | `lock` | flock；进程崩溃由内核释放，不留脏锁 |
+| 诊断 | `doctor` | 分层检查 + 退出码 0/2/1 + `--json` |
 
 测试：`go test ./...` 覆盖配置校验与原子写、凭据引用解析、launchd plist 与状态解析、图装配（真实 `build.Build[agentkit.Runner]`）、owner 绑定、verify 策略、agent 检测超时、任务状态机与投递生命周期。
 
@@ -63,7 +63,7 @@ bin/agentdock service install
 | 工具审批卡片闭环 | 未实现。`autoApprove` 默认为 false，审批相关需求仍是目标 | ACL-02 |
 | 会话恢复 / 取消终态 | 依赖 ACP 能力；未做能力矩阵降级 | AGT-02、AGT-03 |
 | 平台投递幂等与 unknown 处理 | 数据模型就绪（`deliveries`），但未接入真实发送路径 | MSG-04 |
-| 任务终态写入 | 入站已记录（`internal/record` 在 ingress 链上写 `accepted`），但 running/completed/failed 尚无调用点：AgentKit 的平台层会消费 `turn/end`，没有对外的终态回调，需要在平台侧加钩子 | MSG-03、MSG-04 |
+| 任务终态写入 | 入站已记录（`record` 在 ingress 链上写 `accepted`），但 running/completed/failed 尚无调用点：AgentKit 的平台层会消费 `turn/end`，没有对外的终态回调，需要在平台侧加钩子 | MSG-03、MSG-04 |
 | 投递结果写入 | `deliveries` 表与状态机就绪，尚未接入发送路径 | MSG-04 |
 | 群聊、线程隔离策略 | 依赖 AgentKit 平台配置项，已透传但未验证 | MSG-01 |
 | 打包发行 | 无 CI、无签名/公证、无安装包 | PKG-01 |
@@ -74,18 +74,43 @@ bin/agentdock service install
 
 - 复用：`runner`、`platform/lark|feishu`、`loop/default`、`agent/acp-remote`、`session/*`、`workspace/default`、`filesystem/local`、`cap/ingress`。
 - 不复制：不在 AgentDock 里再建一套消息循环、会话存储或权限判定。
-- 装配集中在 `internal/runtime/assemble.go`；`TestBuildAssemblesRunner` 会真实构造 runner，AgentKit 升级导致的 dep/kind 变更会在这里先失败。
+- 装配集中在 `runtime/assemble.go`；`TestBuildAssemblesRunner` 会真实构造 runner，AgentKit 升级导致的 dep/kind 变更会在这里先失败。
 - 固定依赖：`agentkit v0.4.45`、`pluginkit v0.1.6`、`larksuite/oapi-sdk-go v3.11.0`（与 AgentKit 一致，避免同一进程两个版本）。
 
 ## 5. 槽位一览
 
 | 槽位 | 接口位置 | kind | 当前实现 |
 |---|---|---|---|
-| 凭据 | `internal/credentials.Store` | `agentdock/credentials-keyring` / `-memory` | keyring / memory |
-| 后台服务 | `internal/service.ServiceManager` | `agentdock/service-launchd` | launchd |
-| 适配器目录 | `internal/catalog.Source` | `agentdock/catalog-acp-registry` | 官方 registry |
+| 凭据 | `credentials.Store` | `agentdock/credentials-keyring` / `-memory` | keyring / memory |
+| 后台服务 | `service.ServiceManager` | `agentdock/service-launchd` | launchd |
+| 适配器目录 | `catalog.Source` | `agentdock/catalog-acp-registry` | 官方 registry |
 | 所有者策略 | AgentKit `ingress.Policy` | `agentdock/policy-owner` | access.Store |
 | 记录策略 | AgentKit `ingress.Policy` | `agentdock/policy-record` | record.Policy |
 | 校验策略 | AgentKit `ingress.Policy` | `agentdock/policy-verify` | verify.Policy |
 
 一个槽位只有单一实现时不造第二套抽象层；接口存在是因为它已经在配置里作为可替换点出现（例如 keyring 与 memory、lark 与 feishu）。
+
+## 模块扩展
+
+公开包位于项目顶层，应用叶子依赖通过 assembly.Open[T] 装配；默认 kind 位于 plugin 包。外部项目可导入契约，实现接口并注册唯一 kind，再从自定义 main 导入 cli.Execute。
+
+例如自定义凭据后端注册：
+
+```go
+pluginkit.Register("example/credentials", func() (credentials.Store, error) {
+    return credentials.NewMemoryStore(), nil // 示例；生产环境替换为自己的后端
+})
+```
+
+自定义入口编译后使用 --credential-store example/credentials。凭据插件不能打印 secret，必须遵循 Store 的缺失、删除幂等与写后回读契约。叶子依赖不得持有需要关闭的后台资源；需要依赖图和生命周期的插件通过 runtime.BuildWithOverrides 装配。
+
+运行层示例：
+
+```go
+runner, result, err := runtime.BuildWithOverrides(ctx, cfg, layout, resolver,
+    map[string]runtime.Node{
+        "telemetry.default": {"use": "example/telemetry"}, // 注册并实现 telemetry.Exporter,
+    })
+```
+
+替换节点时显式提供完整 use/config/deps；依赖可以引用新增节点。调用方负责 runner.Run/Stop 生命周期。CLI 的 --service-plugin 和 --catalog-plugin 分别接收已注册的服务及目录 kind；默认启动参数会随服务安装保存。更换插件参数后需重新安装服务以更新启动参数。

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lengzhao/AgentDock/internal/cli"
+	"github.com/lengzhao/AgentDock/cli"
 )
 
 func main() {

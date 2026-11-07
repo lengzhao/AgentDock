@@ -1,6 +1,6 @@
 # AgentDock 架构方案
 
-日期：2026-11-07；状态：建议方案，尚未实现。首版 macOS + Lark；后续扩展多系统、多 IM、多 Agent。
+日期：2026-11-07；状态：已存在实现，具体交付状态见 development.md。首版 macOS + Lark；后续扩展多系统、多 IM、多 Agent。
 
 ## 1. 方案选择
 
@@ -96,3 +96,13 @@ Secret、刷新令牌以及敏感恢复令牌进入 Keychain；临时 access tok
 - 新增能力通过接口与验证复用，不为尚未交付的平台引入微服务、插件商店或动态二进制加载。
 
 上述扩展顺序为建议，可根据实际需求调整，不扩大首版发布门槛。
+
+## 9. 公开模块与可替换装配
+
+不使用 internal 目录，各职责包位于模块顶层。CLI 使用 assembly.Open[T] 从已注册 PluginKit kind 构造 credentials.Store、service.ServiceManager 和 catalog.Source；默认实现由 plugin 包注册。所有服务操作只依赖 ServiceManager。
+
+选择入口为 --credential-store（keyring / memory / 注册 kind）、--service-plugin、--catalog-plugin；服务安装保存这些启动参数。自定义插件必须编译进所运行的可执行文件，构造参数契约分别是 servicePrefix（默认 Keyring）、label（服务）和 cacheDir（目录源）。memory 仅适合测试。
+
+runtime.GraphWithOverrides 和 BuildWithOverrides 接受按实例 ID 提供的完整节点，支持替换平台、Agent 所在 loop、会话、工作区、文件系统、遥测、命令及准入策略，也可新增依赖节点。节点的 use/config/deps 一并替换，PluginKit 在构造时验证依赖接口。默认图不变，默认所有者和去重链继续启用。替换准入策略的扩展须自行保持授权语义。
+
+纯数据与工具包保持普通公开 Go 包；可替换的有状态依赖使用小接口。当前 setup 和 owner 查询仍针对 Lark/飞书，新增 IM 需要相应引导适配；运行图覆盖不代表该平台已获得完整产品支持。此版本不提供动态二进制加载或热替换。

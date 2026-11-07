@@ -63,11 +63,11 @@ M0 退出条件：更新需求中的未决项、形成可评审设计，并确�
 建议文件边界（均尚不存在，实施时按 M0 结果调整）：
 
 - `go.mod`、`cmd/agentdock/main.go`：固定依赖与命令入口。
-- `internal/config/`：配置模型、校验、schema 版本与原子写入。
-- `internal/runtime/`：AgentKit 运行与生命周期适配。
-- `internal/agents/`：Agent 目录、路径/版本检测与能力声明。
-- `internal/state/`：会话、接收去重、任务与投递状态。
-- `internal/access/`：所有者、允许用户和请求关联。
+- `config/`：配置模型、校验、schema 版本与原子写入。
+- `runtime/`：AgentKit 运行与生命周期适配。
+- `agents/`：Agent 目录、路径/版本检测与能力声明。
+- `state/`：会话、接收去重、任务与投递状态。
+- `access/`：所有者、允许用户和请求关联。
 
 工作顺序：
 
@@ -84,7 +84,7 @@ M1 退出条件：核心对话和权限闭环可用，尚不宣称一键安装�
 
 ## 4. M2：配置引导与安全凭据
 
-建议文件：`internal/setup/`、`internal/credentials/`、`internal/platforms/lark/setup.go`、对应 CLI 子命令与用户指南。
+建议文件：`setup/`、`credentials/`、`platforms/lark/setup.go`、对应 CLI 子命令与用户指南。
 
 工作顺序：
 
@@ -102,7 +102,7 @@ M2 退出条件：支持的账号条件下，用户无需手改配置即可完�
 
 ## 5. M3：后台服务与恢复
 
-建议文件：`internal/service/`、`internal/diagnostics/`、状态存储恢复逻辑、`docs/guides/service.md` 与 `docs/guides/troubleshooting.md`。
+建议文件：`service/`、`diagnostics/`、状态存储恢复逻辑、`docs/guides/service.md` 与 `docs/guides/troubleshooting.md`。
 
 工作顺序：
 
