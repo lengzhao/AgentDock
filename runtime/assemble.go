@@ -185,7 +185,7 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 			},
 		},
 		"commands.default": Node{
-			"use":  "commands/registry",
+			"use":  scopedCommandsKind,
 			"deps": Node{"sessionCommands": "sessionCommands.default"},
 		},
 		"sessionCommands.default": Node{

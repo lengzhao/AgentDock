@@ -46,6 +46,9 @@ func (s *scopedCommands) SetCommands(providers []agentkit.CommandProvider) error
 	}
 	selected := make([]agentkit.CommandProvider, 0, len(providers)+1)
 	for _, provider := range providers {
+		if provider == nil {
+			continue
+		}
 		id := ""
 		if identified, ok := provider.(interface{ CommandInstanceID() string }); ok {
 			id = identified.CommandInstanceID()
@@ -53,7 +56,9 @@ func (s *scopedCommands) SetCommands(providers []agentkit.CommandProvider) error
 		if private[id] && id != s.config.Provider {
 			continue
 		}
-		selected = append(selected, provider)
+		selected = append(selected, agentkit.CommandProviderInstance{
+			CommandProvider: shortACPCommands{provider}, ID: id,
+		})
 	}
 	selected = append(selected, pluginHelpProvider{})
 	return s.registry.SetCommands(selected)
@@ -70,3 +75,39 @@ func (pluginHelpProvider) Commands() []agentkit.Command {
 }
 
 var _ agentkit.CommandCollector = (*scopedCommands)(nil)
+
+// Keep catalog adapter IDs stable while exposing concise user commands.
+type shortACPCommands struct{ agentkit.CommandProvider }
+
+func (p shortACPCommands) Commands() []agentkit.Command {
+	commands := append([]agentkit.Command(nil), p.CommandProvider.Commands()...)
+	for i, cmd := range commands {
+		if cmd == nil {
+			continue
+		}
+		name := ""
+		switch cmd.Name() {
+		case "acp-claude-acp":
+			name = "acp-claude"
+		case "acp-codex-acp":
+			name = "acp-codex"
+		}
+		if name != "" {
+			commands[i] = shortACPCommand{Command: cmd, name: name}
+		}
+	}
+	return commands
+}
+
+type shortACPCommand struct {
+	agentkit.Command
+	name string
+}
+
+func (c shortACPCommand) Name() string { return c.name }
+func (c shortACPCommand) SanitizeArgsForLog(args string) string {
+	if sanitizer, ok := c.Command.(agentkit.CommandLogSanitizer); ok {
+		return sanitizer.SanitizeArgsForLog(args)
+	}
+	return args
+}
