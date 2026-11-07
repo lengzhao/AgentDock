@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/lengzhao/agentkit"
 	_ "github.com/lengzhao/agentkit/plugins"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/credentials"
+	"github.com/lengzhao/AgentDock/internal/envslash"
 	"github.com/lengzhao/AgentDock/internal/plugin"
 	verifyRecord "github.com/lengzhao/AgentDock/internal/record"
 	"github.com/lengzhao/AgentDock/internal/verify"
@@ -44,6 +46,7 @@ type Layout struct {
 type Secrets struct {
 	AppID     string
 	AppSecret string
+	AgentEnv  map[string]map[string]string
 }
 
 // Graph builds the pluginkit instance graph for cfg. Every secret is injected
@@ -61,6 +64,15 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 
 	agents := make([]any, 0, len(cfg.Agents))
 	for _, a := range cfg.Agents {
+		env := a.Env
+		if resolved, ok := secrets.AgentEnv[a.ID]; ok {
+			env = resolved
+		}
+		for key, value := range a.Env {
+			if (strings.HasPrefix(value, "keyring://") || strings.HasPrefix(value, "env:")) && (env[key] == value || env[key] == "") {
+				return nil, "", fmt.Errorf("agent %s environment %s has not been resolved", a.ID, key)
+			}
+		}
 		agents = append(agents, Node{
 			"use": "agent/acp-remote",
 			"config": Node{
@@ -70,7 +82,7 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 				"releaseSubprocessAfterTurn": true,
 				"autoApprove":                a.AutoApprove,
 				"authMethod":                 a.AuthMethod,
-				"env":                        toAnyMap(a.Env),
+				"env":                        toAnyMap(env),
 			},
 			"deps": Node{
 				"workspace":     "workspace.default",
@@ -111,6 +123,7 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 				"allowFrom":          cfg.Platform.AllowFrom,
 				"allowChat":          cfg.Platform.AllowChat,
 				"groupReplyAll":      cfg.Platform.GroupReplyAll,
+				"dmThreadMode":       true,
 				"runnerSessionScope": cfg.Runtime.SessionScope,
 				"showToolProgress":   true,
 				"showThinking":       false,
@@ -186,6 +199,17 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 		"telemetry.default": Node{"use": "telemetry/none"},
 		"telemetry.toolkit": Node{"use": "telemetry/toolkit"},
 	}
+	platformDeps := graph["platform.main"].(Node)["deps"].(Node)
+	graph["env.default"] = Node{
+		"use":    envslash.Kind,
+		"config": Node{"path": filepath.Join(layout.Home, "config.yaml"), "accessPath": filepath.Join(layout.StateDir, "access.json"), "platform": cfg.Platform.Kind},
+		"deps": Node{
+			"store": Node{"use": plugin.KindCredentialsKeyring, "config": Node{"servicePrefix": "io.agentdock"}},
+			"inner": platformDeps["inboundPolicy"],
+		},
+	}
+	platformDeps["inboundPolicy"] = "env.default"
+	graph["runner.default"].(Node)["deps"].(Node)["init"] = []any{"env.default"}
 	return graph, "runner.default", nil
 }
 
@@ -204,13 +228,22 @@ func Build(ctx context.Context, cfg config.Config, layout Layout, res *credentia
 		return nil, nil, fmt.Errorf("platform app secret (%s): %w\nrun `agentdock doctor` to check the credential store, or `agentdock setup --app-id <id>` to store it again",
 			cfg.Platform.AppSecretRef, err)
 	}
-	graph, rootID, err := Graph(cfg, layout, Secrets{AppID: appID, AppSecret: appSecret})
+	agentEnv, err := ResolveAgentEnvironment(ctx, cfg, res)
+	if err != nil {
+		return nil, nil, err
+	}
+	graph, rootID, err := Graph(cfg, layout, Secrets{AppID: appID, AppSecret: appSecret, AgentEnv: agentEnv})
 	if err != nil {
 		return nil, nil, err
 	}
 	runner, result, err := build.Build[agentkit.Runner](ctx, graph, rootID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("assemble runner: %w", err)
+	}
+	if provider, ok := build.GetByID[*envslash.Provider](result, "env.default"); ok {
+		if err := provider.UseCredentialStore(res.Store()); err != nil {
+			return nil, nil, err
+		}
 	}
 	return runner, result, nil
 }

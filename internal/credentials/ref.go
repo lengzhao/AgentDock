@@ -104,3 +104,6 @@ func isEnvName(name string) bool {
 	}
 	return true
 }
+
+// ValidEnvName reports whether name is a portable environment variable name.
+func ValidEnvName(name string) bool { return isEnvName(name) }

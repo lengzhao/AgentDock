@@ -190,3 +190,34 @@ func TestBootoutTreatsMissingJobAsSuccess(t *testing.T) {
 		t.Fatal("uninstall must remove the plist")
 	}
 }
+
+func TestInstallDoesNotUnloadAnUnloadedDefinition(t *testing.T) {
+	l := &Launchd{Label: "io.agentdock.agent", PlistPath: filepath.Join(t.TempDir(), "agent.plist"), Domain: "gui/501"}
+	l.Run = func(_ context.Context, args ...string) (string, string, error) {
+		if args[0] != "print" {
+			t.Errorf("unexpected %s for unloaded job", args[0])
+		}
+		return "", "Could not find service", errors.New("exit 113")
+	}
+	if err := l.Install(context.Background(), baseSpec(t)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInstallReloadsLoadedStoppedJob(t *testing.T) {
+	l := &Launchd{Label: "io.agentdock.agent", PlistPath: filepath.Join(t.TempDir(), "agent.plist"), Domain: "gui/501"}
+	bootouts := 0
+	l.Run = func(_ context.Context, args ...string) (string, string, error) {
+		if args[0] == "bootout" {
+			bootouts++
+			return "", "", nil
+		}
+		return "state = waiting\nlast exit code = 1\n", "", nil
+	}
+	if err := l.Install(context.Background(), baseSpec(t)); err != nil {
+		t.Fatal(err)
+	}
+	if bootouts != 1 {
+		t.Fatalf("bootout count = %d, want 1", bootouts)
+	}
+}

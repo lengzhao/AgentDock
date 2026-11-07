@@ -143,7 +143,7 @@ func (l *Launchd) Install(ctx context.Context, spec Spec) error {
 	if err != nil {
 		return err
 	}
-	if st.State == StateRunning || st.State == StateStopped {
+	if st.Loaded {
 		// Already bootstrapped: reload so the definition we just wrote is the one
 		// launchd uses. Failure to bootout a loaded job is reported, not ignored.
 		if err := l.bootout(ctx); err != nil {
@@ -220,7 +220,7 @@ func (l *Launchd) Status(ctx context.Context) (Status, error) {
 		}
 		return Status{State: StateUnknown, Detail: strings.TrimSpace(stderr)}, nil
 	}
-	st := Status{State: StateStopped}
+	st := Status{State: StateStopped, Loaded: true}
 	for _, line := range strings.Split(stdout, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "pid = ") {

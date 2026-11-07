@@ -32,6 +32,9 @@ const (
 // Status is a snapshot of the service.
 type Status struct {
 	State State
+	// Loaded reports whether the backend has registered the service definition,
+	// independently of whether its process is currently running.
+	Loaded bool
 	// PID is the running process id, 0 when not running.
 	PID int
 	// LastExitCode is the last exit status launchd recorded, when known.

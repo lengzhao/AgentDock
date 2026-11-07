@@ -38,11 +38,14 @@ bin/agentdock service install
 | 配置 | `internal/config` | 模型 + 校验 + 原子写（0600）；`KnownFields` 拒绝未知字段；secret 只能写引用，裸值直接报错 |
 | 凭据槽位 | `internal/credentials` | `Store` 接口 + keyring（`zalando/go-keyring`，写后强制回读）+ memory；`Resolver` 支持 `keyring://svc/account` 与 `env:NAME` |
 | 服务槽位 | `internal/service` | `ServiceManager` 接口 + launchd 实现（plist 渲染、`bootstrap/bootout/kickstart/print` 语义归一化、拒绝把 secret 写进 plist） |
+| 后台环境 | `internal/cli/service_shell.go` | 查询用户账户登录 shell，用 `-l -i -c` 加载导出环境后 `exec` AgentDock；不把环境凭据或 PATH 快照写入 plist，参数按 shell 字面量转义 |
 | 运行装配 | `internal/runtime` | AgentDock 配置 → AgentKit 实例图；**唯一**出现 AgentKit kind 名的地方 |
+| 私聊话题 | `internal/runtime` | 默认启用 Lark/飞书 `dmThreadMode`：主界面新消息开启独立话题，话题内追问延续同一会话；默认 `sessionScope: thread` |
 | 适配器目录槽位 | `internal/catalog` | ACP registry：磁盘缓存、离线降级、binary 优先 npm、许可告警、白名单封装 |
 | 平台注册 | `internal/platform/lark` | 官方 `scene/registration` 扫码建应用（LARK-01），凭据入库并回读；拒绝/超时/取消给出可操作提示 |
 | 入站准入链 | `internal/access` → `internal/record` → `internal/verify` | 三层 `ingress.Policy` 装饰：先判所有者，再落任务记录（重复投递在此拒绝），最后记录校验 token |
 | 所有者绑定 | `internal/access`、`internal/platform/lark/owner.go`、`internal/cli/owner.go` | setup/run 首次查询当前应用 owner 的 open_id 并自动绑定；保留已有绑定；失败提示手动 `access bind`（15 分钟一次性 challenge）；未绑定期间拒绝消息。已有安装可用 `access bind --auto` |
+| 环境变量 slash | `internal/envslash`、`internal/runtime/env.go` | `/env list/set/check/unset <agent>`；仅 owner 私聊；值存 Keychain、配置只保存引用；命令日志脱敏；启动时解析并注入对应 Agent，重启生效 |
 | 端到端校验 | `internal/verify` | ingress 策略装饰器：只有被 owner 策略接受的入站消息里的 `AGENTDOCK-…` token 才会写 marker，连接成功但没收到消息不会误判为通过 |
 | Agent 检测 | `internal/agent` | 解析可执行文件 + 版本探测；区分 missing / broken / ready / unknown，**不声称登录有效** |
 | 运行记录 | `internal/state` + `internal/record` | SQLite（纯 Go `modernc.org/sqlite`）：任务状态、投递状态、启动时把非终态标为 interrupted、30 天清理。入站消息在 ingress 链上落 `accepted` 记录，键为 `安装\|平台\|实例\|事件 ID`，进程重启后仍能去重 |

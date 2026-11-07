@@ -17,6 +17,21 @@ func validConfig() Config {
 	return cfg
 }
 
+func TestAgentEnvAcceptsReferencesButRejectsLiteralSecrets(t *testing.T) {
+	for _, value := range []string{"keyring://agent-env/token", "env:TEST_TOKEN"} {
+		cfg := validConfig()
+		cfg.Agents[0].Env = map[string]string{"ANTHROPIC_AUTH_TOKEN": value}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("reference rejected: %v", err)
+		}
+	}
+	cfg := validConfig()
+	cfg.Agents[0].Env = map[string]string{"ANTHROPIC_AUTH_TOKEN": "do-not-print"}
+	if err := cfg.Validate(); err == nil || strings.Contains(err.Error(), "do-not-print") {
+		t.Fatal("literal secret must be rejected without exposing it")
+	}
+}
+
 func TestValidateAcceptsMinimalConfig(t *testing.T) {
 	t.Parallel()
 	cfg := validConfig()

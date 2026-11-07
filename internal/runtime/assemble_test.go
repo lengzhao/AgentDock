@@ -49,6 +49,9 @@ func TestGraphContainsResolvedSecretsAndAgents(t *testing.T) {
 	if platformCfg["domain"] != "https://open.larksuite.com" {
 		t.Fatalf("domain = %v", platformCfg["domain"])
 	}
+	if platformCfg["dmThreadMode"] != true {
+		t.Fatal("private messages must use Lark topics by default")
+	}
 	loopCfg := graph["loop.default"].(map[string]any)["config"].(map[string]any)
 	if loopCfg["defaultAgent"] != "claude" {
 		t.Fatalf("defaultAgent = %v", loopCfg["defaultAgent"])
@@ -56,6 +59,22 @@ func TestGraphContainsResolvedSecretsAndAgents(t *testing.T) {
 	agents := graph["loop.default"].(map[string]any)["deps"].(map[string]any)["agents"].([]any)
 	if len(agents) != 2 {
 		t.Fatalf("agents = %d", len(agents))
+	}
+}
+
+func TestGraphWiresUnifiedEnvProvider(t *testing.T) {
+	cfg := testConfig()
+	graph, _, err := runtime.Graph(cfg, runtime.Layout{Home: "/tmp/ad", StateDir: "/tmp/ad/state"}, runtime.Secrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, ok := graph["env.default"].(map[string]any)
+	if !ok || provider["use"] != "agentdock/env" {
+		t.Fatal("env provider missing")
+	}
+	platform := graph["platform.main"].(map[string]any)
+	if platform["deps"].(map[string]any)["inboundPolicy"] != "env.default" {
+		t.Fatal("env provider must receive trusted conversation facts")
 	}
 }
 

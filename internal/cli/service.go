@@ -152,8 +152,8 @@ func serviceSpec(cfg config.Config) (service.Spec, error) {
 	}
 	return service.Spec{
 		Label:           cfg.Service.Label,
-		Executable:      exe,
-		Args:            []string{"run", "--home", rootEnv.paths.Home},
+		Executable:      userLoginShell(),
+		Args:            loginShellArgs([]string{exe, "run", "--home", rootEnv.paths.Home}),
 		WorkingDir:      rootEnv.paths.Home,
 		LogDir:          rootEnv.paths.LogDir,
 		HOME:            home,

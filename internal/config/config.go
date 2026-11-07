@@ -75,7 +75,7 @@ type Agent struct {
 	// AutoApprove grants tool permission requests without asking. Off by default;
 	// turning it on removes the approval loop described in ACL-02.
 	AutoApprove bool `yaml:"autoApprove"`
-	// Env adds non-secret environment variables for the adapter process.
+	// Env contains literal nonsecret settings or keyring:// / env: references.
 	Env map[string]string `yaml:"env"`
 }
 
@@ -321,6 +321,15 @@ func (c Config) Validate() error {
 			return fmt.Errorf("agents[%s].command is required", a.ID)
 		}
 		for k := range a.Env {
+			if !credentials.ValidEnvName(k) {
+				return fmt.Errorf("agents[%s] contains an invalid environment variable name", a.ID)
+			}
+			if strings.HasPrefix(a.Env[k], "keyring://") || strings.HasPrefix(a.Env[k], "env:") {
+				if _, err := credentials.ParseRef(a.Env[k]); err != nil {
+					return fmt.Errorf("agents[%s].env[%s] has an invalid credential reference", a.ID, k)
+				}
+				continue
+			}
 			if LooksLikeSecretName(k) && a.Env[k] != "" {
 				return fmt.Errorf("agents[%s].env[%s] looks like a secret; use a credential reference instead", a.ID, k)
 			}
