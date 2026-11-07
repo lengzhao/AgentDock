@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "presets": [
+    {
+      "id": "claude",
+      "loginHint": "claude /login (Claude Code CLI)",
+      "offlineCommand": ["npx", "-y", "@agentclientprotocol/claude-agent-acp@0.101.0"]
+    },
+    {
+      "id": "codex",
+      "loginHint": "codex login (Codex CLI)",
+      "offlineCommand": ["npx", "-y", "@agentclientprotocol/codex-acp@2.5.0"]
+    },
+    {
+      "id": "cursor",
+      "loginHint": "agent login (Cursor CLI)",
+      "offlineCommand": ["cursor-agent", "acp"],
+      "authMethod": "cursor_login"
+    },
+    {
+      "id": "opencode",
+      "loginHint": "opencode auth login",
+      "offlineCommand": ["opencode", "acp"]
+    },
+    {
+      "id": "kimi",
+      "loginHint": "kimi login (Kimi CLI)",
+      "offlineCommand": ["kimi", "--acp"]
+    },
+    {
+      "id": "kimi-code",
+      "loginHint": "kimi login (@moonshot-ai/kimi-code)",
+      "offlineCommand": ["npx", "-y", "@moonshot-ai/kimi-code@2.5.2", "acp"]
+    },
+    {
+      "id": "codebuddy",
+      "loginHint": "codebuddy login (CodeBuddy CLI)",
+      "offlineCommand": ["npx", "-y", "@tencent-ai/codebuddy-code@2.181.0", "--acp"]
+    },
+    {
+      "id": "copilot",
+      "loginHint": "copilot login (GitHub Copilot CLI)",
+      "offlineCommand": ["npx", "-y", "@github/copilot@1.0.107", "--acp"]
+    },
+    {
+      "id": "gemini",
+      "loginHint": "gemini auth login (Gemini CLI)",
+      "offlineCommand": ["npx", "-y", "@google/gemini-cli@0.67.0", "--acp"]
+    },
+    {
+      "id": "qwen",
+      "loginHint": "qwen auth login (Qwen Code CLI)",
+      "offlineCommand": ["npx", "-y", "@qwen-code/qwen-code@0.26.9", "--acp", "--experimental-skills"]
+    },
+    {
+      "id": "grok",
+      "loginHint": "grok auth login (Grok Build CLI)",
+      "offlineCommand": ["npx", "-y", "@xai-official/grok@1.0.78", "agent", "stdio"]
+    },
+    {
+      "id": "qoder",
+      "loginHint": "qoder auth login (Qoder CLI)",
+      "offlineCommand": ["npx", "-y", "@qoder-ai/qodercli@0.2.14", "--acp"]
+    },
+    {
+      "id": "mcode",
+      "loginHint": "mcode login (MiniMax Code CLI)",
+      "offlineCommand": ["mcode", "acp"]
+    },
+    {
+      "id": "dim",
+      "loginHint": "dim login (DimCode CLI)",
+      "offlineCommand": ["dim", "acp"]
+    },
+    {
+      "id": "devin",
+      "loginHint": "devin auth login (Devin CLI)",
+      "offlineCommand": ["devin", "acp"]
+    },
+    {
+      "id": "pi",
+      "loginHint": "pi login (Pi / pi-acp)",
+      "offlineCommand": ["npx", "-y", "pi-acp@0.0.34"]
+    },
+    {
+      "id": "cline",
+      "loginHint": "cline auth (Cline CLI)",
+      "offlineCommand": ["npx", "-y", "cline@3.0.74", "--acp"]
+    },
+    {
+      "id": "auggie",
+      "loginHint": "auggie login (Augment CLI)",
+      "offlineCommand": ["npx", "-y", "@augmentcode/auggie@0.37.0", "--acp"]
+    },
+    {
+      "id": "kilo",
+      "loginHint": "kilo login (Kilo Code CLI)",
+      "offlineCommand": ["npx", "-y", "@kilocode/cli@7.8.27", "acp"]
+    },
+    {
+      "id": "glm",
+      "loginHint": "follow GLM ACP agent login flow",
+      "offlineCommand": ["npx", "-y", "glm-acp-agent@1.17.0"]
+    },
+    {
+      "id": "nova",
+      "loginHint": "nova login (Nova CLI)",
+      "offlineCommand": ["npx", "-y", "@compass-ai/nova@1.1.64", "acp"]
+    },
+    {
+      "id": "trae",
+      "loginHint": "traecli login (Trae CLI)",
+      "offlineCommand": ["traecli", "acp", "serve"]
+    },
+    {
+      "id": "kiro",
+      "loginHint": "kiro-cli login (Kiro CLI)",
+      "offlineCommand": ["kiro-cli", "acp"]
+    },
+    {
+      "id": "deepagents",
+      "loginHint": "follow deepagents login flow",
+      "offlineCommand": ["npx", "-y", "deepagents-acp@0.1.7"]
+    }
+  ]
+}
