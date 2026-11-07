@@ -135,9 +135,6 @@ func newVersionCmd() *cobra.Command {
 	}
 }
 
-// errSilentExit signals "already reported, exit non-zero" without extra noise.
-var errSilentExit = errors.New("exit")
-
 func warnf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "warning: "+format+"\n", args...)
 }

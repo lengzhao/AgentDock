@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/doctor"
 )
 
@@ -59,5 +58,3 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	enc := jsonEncoder(cmd.OutOrStdout())
 	return enc.Encode(v)
 }
-
-var _ = config.Version

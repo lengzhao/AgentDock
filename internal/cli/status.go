@@ -8,7 +8,6 @@ import (
 
 	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/runtime"
-	"github.com/lengzhao/AgentDock/internal/service"
 	"github.com/lengzhao/AgentDock/internal/setup"
 )
 
@@ -57,7 +56,6 @@ func newStatusCmd() *cobra.Command {
 					}
 					fmt.Fprintf(out, "service: %s\n", line)
 				}
-				_ = service.StateUnknown
 			}
 			return nil
 		},

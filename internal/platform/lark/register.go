@@ -16,7 +16,6 @@ import (
 	"github.com/larksuite/oapi-sdk-go/v3/scene/registration"
 	"github.com/mdp/qrterminal/v3"
 
-	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/credentials"
 )
 
@@ -214,5 +213,3 @@ func describeRegistrationError(err error, kind string) error {
 		return fmt.Errorf("registration failed: %w", err)
 	}
 }
-
-var _ = config.Version

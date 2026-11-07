@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/doctor"
 	"github.com/lengzhao/AgentDock/internal/setup"
 )
@@ -77,5 +76,3 @@ func newNonce() (string, error) {
 	}
 	return "AGENTDOCK-" + hex.EncodeToString(buf), nil
 }
-
-var _ = config.Version
