@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -44,7 +45,7 @@ var (
 
 // RegisterOptions configures one registration attempt.
 type RegisterOptions struct {
-	// Kind is "lark" or "feishu"; it selects the accounts domain.
+	// Kind is "lark" or "feishu"; it selects the confirmation page's edition.
 	Kind string
 	// AppName is pre-filled on the confirmation page.
 	AppName string
@@ -55,16 +56,11 @@ type RegisterOptions struct {
 	OpenURL func(url string)
 	// Store receives the resulting credentials. It must verify read-back.
 	Store credentials.Store
-	// TenantBrand selects which authorization host issues the code: "feishu" for
-	// the China edition, "lark" for the international one. It is not guessable from
-	// the app id, and a code issued by one host cannot be confirmed on the other
-	// host's page: the page can only answer "expired". Auto (empty) starts on the
-	// SDK default and switches when the poll reports the real brand.
+	// TenantBrand overrides the confirmation page's edition. Code issuance always
+	// bootstraps on Feishu, including for Lark; polling switches after discovery.
+	// Empty uses Kind for the page and leaves discovery to the SDK.
 	TenantBrand string
-	// NoAddons omits the prefilled scopes/events/callbacks. The official page
-	// validates that payload against a per-tenant template, and a mismatch there
-	// surfaces as a generic "link expired" page, so this is the fallback that keeps
-	// registration usable when the prefill is rejected.
+	// NoAddons omits the prefilled scopes/events/callbacks for manual configuration.
 	NoAddons bool
 }
 
@@ -91,6 +87,10 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 	}
 
 	var once sync.Once
+	pageBrand := opt.TenantBrand
+	if pageBrand == "" {
+		pageBrand = opt.Kind
+	}
 	opts := &registration.Options{
 		Source: "agentdock",
 		AppPreset: &registration.AppPreset{
@@ -111,19 +111,31 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 		}(),
 		OnQRCode: func(info *registration.QRCodeInfo) {
 			once.Do(func() {
-				fmt.Fprintf(opt.Out, "\nScan this code in %s to create the app:\n\n", brandName(opt.Kind))
-				qrterminal.GenerateWithConfig(info.URL, qrterminal.Config{
+				// Match the official CLI: change only the user-facing host, never
+				// the accounts host issuing the code or the code/query itself.
+				pageURL := info.URL
+				if u, err := url.Parse(pageURL); err == nil && u.Scheme == "https" &&
+					(u.Host == "open.feishu.cn" || u.Host == "open.larksuite.com") {
+					switch pageBrand {
+					case "lark":
+						u.Host = "open.larksuite.com"
+					case "feishu":
+						u.Host = "open.feishu.cn"
+					}
+					pageURL = u.String()
+				}
+				fmt.Fprintf(opt.Out, "\nScan this code in %s to create the app:\n\n", brandName(pageBrand))
+				qrterminal.GenerateWithConfig(pageURL, qrterminal.Config{
 					Level:      qrterminal.L,
 					Writer:     opt.Out,
 					HalfBlocks: true,
 					QuietZone:  2,
 				})
-				fmt.Fprintf(opt.Out, "\nOr open: %s\n", info.URL)
-				fmt.Fprintf(opt.Out, "Link expires in %d seconds, single use: open it once and finish the page.\n", info.ExpireIn)
-				fmt.Fprintf(opt.Out, "The link must be opened in the same edition that issued it; ask AgentDock to print the\n")
-				fmt.Fprintf(opt.Out, "authorization host it used with --tenant-brand feishu|lark if the page reports it expired.\n\n")
+				fmt.Fprintf(opt.Out, "\nOr open: %s\n", pageURL)
+				fmt.Fprintf(opt.Out, "Confirmation page: %s; registration starts on Feishu and discovers the tenant for polling.\n", brandName(pageBrand))
+				fmt.Fprintf(opt.Out, "Keep setup running while completing the page (SDK wait limit: %d seconds).\n\n", info.ExpireIn)
 				if opt.OpenURL != nil {
-					opt.OpenURL(info.URL)
+					opt.OpenURL(pageURL)
 				}
 			})
 		},
@@ -132,17 +144,10 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 			case registration.StatusSlowDown:
 				fmt.Fprintf(opt.Out, "  (server asked to slow down; polling every %ds)\n", info.Interval)
 			case registration.StatusDomainSwitched:
-				fmt.Fprintf(opt.Out, "  (tenant is Lark; the first link belonged to Feishu — switching authorization domain)\n")
+				fmt.Fprintf(opt.Out, "  (tenant is Lark; switching the credential polling domain)\n")
 			}
 		},
 	}
-	switch opt.TenantBrand {
-	case "lark":
-		opts.Domain = "https://accounts.larksuite.com"
-	case "feishu":
-		opts.Domain = "https://accounts.feishu.cn"
-	}
-
 	result, err := registration.RegisterApp(ctx, opts)
 	if err != nil {
 		return Registration{}, describeRegistrationError(err, opt.Kind)

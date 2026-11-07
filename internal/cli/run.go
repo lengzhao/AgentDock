@@ -78,6 +78,7 @@ func runForeground(cmd *cobra.Command) error {
 		return err
 	}
 	resolver := credentials.NewResolver(store, os.LookupEnv)
+	tryAutoBindApplicationOwner(ctx, cmd.OutOrStdout(), cfg, resolver)
 	layout := runtime.Layout{Home: paths.Home, InstanceDir: paths.InstanceDir, StateDir: paths.StateDir}
 
 	runner, result, err := runtime.Build(ctx, cfg, layout, resolver)

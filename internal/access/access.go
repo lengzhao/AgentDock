@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/lengzhao/agentkit/cap/ingress"
@@ -71,6 +73,26 @@ func (s *Store) loadLocked() (State, error) {
 func (s *Store) Update(fn func(*State) error) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A stable lock file serializes read/modify/write across Store instances and
+	// processes. Do not unlink it: waiters must continue locking the same inode.
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+		return State{}, fmt.Errorf("create access state directory: %w", err)
+	}
+	f, err := os.OpenFile(s.path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return State{}, fmt.Errorf("open access state lock: %w", err)
+	}
+	defer f.Close()
+	for {
+		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
+		if err != syscall.EINTR {
+			break
+		}
+	}
+	if err != nil {
+		return State{}, fmt.Errorf("lock access state: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	st, err := s.loadLocked()
 	if err != nil {
 		return State{}, err

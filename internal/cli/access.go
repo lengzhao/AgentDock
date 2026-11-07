@@ -5,40 +5,50 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/lengzhao/AgentDock/internal/access"
+	"github.com/lengzhao/AgentDock/internal/credentials"
 	"github.com/lengzhao/AgentDock/internal/setup"
 )
 
 func newAccessCmd() *cobra.Command {
+	var auto bool
+	bind := &cobra.Command{
+		Use:   "bind",
+		Short: "Bind the application owner automatically or print a manual challenge",
+		Long:  "Use --auto to query and bind the application's owner. Without --auto, print a single-use challenge valid for 15 minutes; send it from your own account to bind that account.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if auto {
+				cfg, err := rootEnv.loadConfig()
+				if err != nil {
+					return err
+				}
+				store, err := rootEnv.store()
+				if err != nil {
+					return err
+				}
+				return autoBindApplicationOwner(cmd.Context(), cmd.OutOrStdout(), cfg, credentials.NewResolver(store, os.LookupEnv))
+			}
+			store := access.NewStore(accessFile())
+			challenge, err := store.StartBinding(15 * time.Minute)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Send this token to the bot within 15 minutes:\n\n    %s\n\n", challenge)
+			fmt.Fprintln(cmd.OutOrStdout(), "The account that sends it becomes the owner. The token is single-use.")
+			return nil
+		},
+	}
+	bind.Flags().BoolVar(&auto, "auto", false, "query the configured application's owner and bind it if unbound")
 	cmd := &cobra.Command{
 		Use:   "access",
 		Short: "Manage the bot owner and allowed users",
 	}
 	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "bind",
-			Short: "Print a one-time challenge that binds the next sender as owner",
-			Long: `Print a one-time binding challenge.
-
-Send the printed token to the bot from your own account within the deadline. The
-sender of that message becomes the owner. Nobody can bind by simply messaging the
-bot first: without a pending challenge every message is rejected (ACL-01).`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				store := access.NewStore(accessFile())
-				challenge, err := store.StartBinding(15 * 1e9)
-				if err != nil {
-					return err
-				}
-				// The step is only complete once the token comes back through the bot,
-				// so `access status` marks it, not this command.
-				fmt.Fprintf(cmd.OutOrStdout(), "Send this token to the bot within 15 minutes:\n\n    %s\n\n", challenge)
-				fmt.Fprintln(cmd.OutOrStdout(), "The account that sends it becomes the owner. The token is single-use.")
-				return nil
-			},
-		},
+		bind,
 		&cobra.Command{
 			Use:   "status",
 			Short: "Show the bound owner",

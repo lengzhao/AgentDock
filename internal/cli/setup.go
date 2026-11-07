@@ -58,8 +58,8 @@ holds references.`,
 	f.StringVar(&flags.allowFrom, "allow-from", "", "comma-separated open_id allowlist for inbound messages")
 	f.BoolVar(&flags.nonInteract, "non-interactive", false, "never prompt; fail when a required value is missing")
 	f.BoolVar(&flags.fromCatalog, "from-catalog", true, "resolve agent commands from the ACP registry catalog")
-	f.StringVar(&flags.tenantBrand, "tenant-brand", "", "authorization host: feishu (China) or lark (international); empty auto-detects")
-	f.BoolVar(&flags.noAddons, "no-addons", false, "do not prefill scopes/events on the registration page (use when the page reports an expired link)")
+	f.StringVar(&flags.tenantBrand, "tenant-brand", "", "confirmation page edition: feishu (China) or lark (international); defaults to --platform")
+	f.BoolVar(&flags.noAddons, "no-addons", false, "do not prefill scopes/events on the registration page; configure them manually")
 	return cmd
 }
 
@@ -117,6 +117,11 @@ func runSetup(cmd *cobra.Command, flags *setupFlags) error {
 		return err
 	}
 	fmt.Fprintf(out, "Wrote %s (no secrets in the file; values are in the credential store).\n", paths.ConfigFile)
+	tryAutoBindApplicationOwner(ctx, out, cfg, credentials.NewResolver(store, os.LookupEnv))
+	state, err = setup.LoadState(paths)
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintf(out, "\nNext steps:\n")
 	fmt.Fprintf(out, "  agentdock run                 # foreground, verify the connection\n")
@@ -331,9 +336,6 @@ func registerApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *
 		fmt.Fprintf(out, "  scopes: %s\n", strings.Join(lark.TenantScopes, ", "))
 		fmt.Fprintf(out, "  events: %s\n", strings.Join(lark.TenantEvents, ", "))
 		fmt.Fprintf(out, "\nThen enable the bot and use long-connection (长连接) event delivery.\n")
-	}
-	if reg.OwnerOpenID != "" {
-		fmt.Fprintf(out, "You are %s; bind it as owner with `agentdock access bind`.\n", reg.OwnerOpenID)
 	}
 	return nil
 }

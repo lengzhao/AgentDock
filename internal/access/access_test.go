@@ -2,12 +2,89 @@ package access
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/lengzhao/agentkit/cap/ingress"
 )
+
+func TestAccessUpdateProcessHelper(t *testing.T) {
+	path := os.Getenv("AGENTDOCK_TEST_ACCESS_PATH")
+	if path == "" {
+		t.Skip("subprocess helper")
+	}
+	for i := 0; i < 8; i++ {
+		_, err := NewStore(path).Update(func(st *State) error {
+			time.Sleep(time.Millisecond)
+			st.AllowFrom += "ou_process,"
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestConcurrentProcessesPreserveAccessUpdates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "access.json")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cmd := exec.Command(exe, "-test.run=^TestAccessUpdateProcessHelper$")
+			cmd.Env = append(os.Environ(), "AGENTDOCK_TEST_ACCESS_PATH="+path)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("helper: %v: %s", err, output)
+			}
+		}()
+	}
+	wg.Wait()
+	st, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(st.AllowFrom, ","); n != 32 {
+		t.Fatalf("retained %d process updates, want 32", n)
+	}
+}
+
+func TestConcurrentStoresPreserveAllUpdates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "access.json")
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := NewStore(path).Update(func(st *State) error {
+				time.Sleep(time.Millisecond)
+				st.AllowFrom += fmt.Sprintf("ou_%d,", i)
+				return nil
+			})
+			if err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	st, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(st.AllowFrom, ","); n != 16 {
+		t.Fatalf("retained %d updates, want 16", n)
+	}
+}
 
 func newStore(t *testing.T) *Store {
 	t.Helper()
