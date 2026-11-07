@@ -55,6 +55,11 @@ type RegisterOptions struct {
 	OpenURL func(url string)
 	// Store receives the resulting credentials. It must verify read-back.
 	Store credentials.Store
+	// NoAddons omits the prefilled scopes/events/callbacks. The official page
+	// validates that payload against a per-tenant template, and a mismatch there
+	// surfaces as a generic "link expired" page, so this is the fallback that keeps
+	// registration usable when the prefill is rejected.
+	NoAddons bool
 }
 
 // Registration is the result of a successful registration.
@@ -86,13 +91,18 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 			Name: opt.AppName,
 			Desc: "AgentDock: your agents, on Lark",
 		},
-		Addons: &registration.AppAddons{
-			Scopes: registration.AppAddonsScopes{Tenant: TenantScopes},
-			Events: registration.AppAddonsEvents{
-				Items: registration.AppAddonsEventItems{Tenant: TenantEvents},
-			},
-			Callbacks: registration.AppAddonsCallbacks{Items: Callbacks},
-		},
+		Addons: func() *registration.AppAddons {
+			if opt.NoAddons {
+				return nil
+			}
+			return &registration.AppAddons{
+				Scopes: registration.AppAddonsScopes{Tenant: TenantScopes},
+				Events: registration.AppAddonsEvents{
+					Items: registration.AppAddonsEventItems{Tenant: TenantEvents},
+				},
+				Callbacks: registration.AppAddonsCallbacks{Items: Callbacks},
+			}
+		}(),
 		OnQRCode: func(info *registration.QRCodeInfo) {
 			once.Do(func() {
 				fmt.Fprintf(opt.Out, "\nScan this code in %s to create the app:\n\n", brandName(opt.Kind))
@@ -103,8 +113,8 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 					QuietZone:  2,
 				})
 				fmt.Fprintf(opt.Out, "\nOr open: %s\n", info.URL)
-				fmt.Fprintf(opt.Out, "Expires in %d seconds. Ctrl+C cancels; no app is created until you confirm.\n\n",
-					info.ExpireIn)
+				fmt.Fprintf(opt.Out, "Expires in %d seconds and works once: open it, finish the page, do not reopen it.\n", info.ExpireIn)
+				fmt.Fprintf(opt.Out, "If the page says the link expired, re-run with --no-addons to drop the prefilled permissions.\n\n")
 				if opt.OpenURL != nil {
 					opt.OpenURL(info.URL)
 				}

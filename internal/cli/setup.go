@@ -29,6 +29,7 @@ type setupFlags struct {
 	allowFrom    string
 	nonInteract  bool
 	fromCatalog  bool
+	noAddons     bool
 }
 
 func newSetupCmd() *cobra.Command {
@@ -56,6 +57,7 @@ holds references.`,
 	f.StringVar(&flags.allowFrom, "allow-from", "", "comma-separated open_id allowlist for inbound messages")
 	f.BoolVar(&flags.nonInteract, "non-interactive", false, "never prompt; fail when a required value is missing")
 	f.BoolVar(&flags.fromCatalog, "from-catalog", true, "resolve agent commands from the ACP registry catalog")
+	f.BoolVar(&flags.noAddons, "no-addons", false, "do not prefill scopes/events on the registration page (use when the page reports an expired link)")
 	return cmd
 }
 
@@ -298,9 +300,10 @@ func registerApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *
 	}
 
 	reg, err := lark.RegisterApp(ctx, lark.RegisterOptions{
-		Kind:  cfg.Platform.Kind,
-		Store: store,
-		Out:   out,
+		Kind:     cfg.Platform.Kind,
+		Store:    store,
+		Out:      out,
+		NoAddons: flags.noAddons,
 		AppName: func() string {
 			return "AgentDock"
 		}(),
@@ -320,6 +323,12 @@ func registerApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *
 	}
 	fmt.Fprintf(out, "\nCreated app %s (secret %s) and stored both in the credential store.\n",
 		reg.AppID, reg.SecretFingerprint)
+	if flags.noAddons {
+		fmt.Fprintf(out, "\nPermissions were NOT prefilled. In the developer console for %s, add:\n", reg.AppID)
+		fmt.Fprintf(out, "  scopes: %s\n", strings.Join(lark.TenantScopes, ", "))
+		fmt.Fprintf(out, "  events: %s\n", strings.Join(lark.TenantEvents, ", "))
+		fmt.Fprintf(out, "\nThen enable the bot and use long-connection (长连接) event delivery.\n")
+	}
 	if reg.OwnerOpenID != "" {
 		fmt.Fprintf(out, "You are %s; bind it as owner with `agentdock access bind`.\n", reg.OwnerOpenID)
 	}
