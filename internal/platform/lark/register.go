@@ -55,6 +55,12 @@ type RegisterOptions struct {
 	OpenURL func(url string)
 	// Store receives the resulting credentials. It must verify read-back.
 	Store credentials.Store
+	// TenantBrand selects which authorization host issues the code: "feishu" for
+	// the China edition, "lark" for the international one. It is not guessable from
+	// the app id, and a code issued by one host cannot be confirmed on the other
+	// host's page: the page can only answer "expired". Auto (empty) starts on the
+	// SDK default and switches when the poll reports the real brand.
+	TenantBrand string
 	// NoAddons omits the prefilled scopes/events/callbacks. The official page
 	// validates that payload against a per-tenant template, and a mismatch there
 	// surfaces as a generic "link expired" page, so this is the fallback that keeps
@@ -113,8 +119,9 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 					QuietZone:  2,
 				})
 				fmt.Fprintf(opt.Out, "\nOr open: %s\n", info.URL)
-				fmt.Fprintf(opt.Out, "Expires in %d seconds and works once: open it, finish the page, do not reopen it.\n", info.ExpireIn)
-				fmt.Fprintf(opt.Out, "If the page says the link expired, re-run with --no-addons to drop the prefilled permissions.\n\n")
+				fmt.Fprintf(opt.Out, "Link expires in %d seconds, single use: open it once and finish the page.\n", info.ExpireIn)
+				fmt.Fprintf(opt.Out, "The link must be opened in the same edition that issued it; ask AgentDock to print the\n")
+				fmt.Fprintf(opt.Out, "authorization host it used with --tenant-brand feishu|lark if the page reports it expired.\n\n")
 				if opt.OpenURL != nil {
 					opt.OpenURL(info.URL)
 				}
@@ -125,12 +132,15 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 			case registration.StatusSlowDown:
 				fmt.Fprintf(opt.Out, "  (server asked to slow down; polling every %ds)\n", info.Interval)
 			case registration.StatusDomainSwitched:
-				fmt.Fprintf(opt.Out, "  (tenant is Lark; switching authorization domain)\n")
+				fmt.Fprintf(opt.Out, "  (tenant is Lark; the first link belonged to Feishu — switching authorization domain)\n")
 			}
 		},
 	}
-	if opt.Kind == "lark" {
+	switch opt.TenantBrand {
+	case "lark":
 		opts.Domain = "https://accounts.larksuite.com"
+	case "feishu":
+		opts.Domain = "https://accounts.feishu.cn"
 	}
 
 	result, err := registration.RegisterApp(ctx, opts)

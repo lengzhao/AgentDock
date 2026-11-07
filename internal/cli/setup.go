@@ -30,6 +30,7 @@ type setupFlags struct {
 	nonInteract  bool
 	fromCatalog  bool
 	noAddons     bool
+	tenantBrand  string
 }
 
 func newSetupCmd() *cobra.Command {
@@ -57,6 +58,7 @@ holds references.`,
 	f.StringVar(&flags.allowFrom, "allow-from", "", "comma-separated open_id allowlist for inbound messages")
 	f.BoolVar(&flags.nonInteract, "non-interactive", false, "never prompt; fail when a required value is missing")
 	f.BoolVar(&flags.fromCatalog, "from-catalog", true, "resolve agent commands from the ACP registry catalog")
+	f.StringVar(&flags.tenantBrand, "tenant-brand", "", "authorization host: feishu (China) or lark (international); empty auto-detects")
 	f.BoolVar(&flags.noAddons, "no-addons", false, "do not prefill scopes/events on the registration page (use when the page reports an expired link)")
 	return cmd
 }
@@ -300,10 +302,11 @@ func registerApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *
 	}
 
 	reg, err := lark.RegisterApp(ctx, lark.RegisterOptions{
-		Kind:     cfg.Platform.Kind,
-		Store:    store,
-		Out:      out,
-		NoAddons: flags.noAddons,
+		Kind:        cfg.Platform.Kind,
+		Store:       store,
+		Out:         out,
+		NoAddons:    flags.noAddons,
+		TenantBrand: flags.tenantBrand,
 		AppName: func() string {
 			return "AgentDock"
 		}(),
