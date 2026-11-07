@@ -25,7 +25,7 @@ type setupFlags struct {
 	agentIDs     []string
 	platformKind string
 	appID        string
-	appSecret    string
+	secretStdin  bool
 	allowFrom    string
 	nonInteract  bool
 	fromCatalog  bool
@@ -50,7 +50,9 @@ holds references.`,
 	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude-acp,codex-acp")
 	f.StringVar(&flags.platformKind, "platform", "lark", "platform: lark (international) or feishu (China)")
 	f.StringVar(&flags.appID, "app-id", "", "existing platform app id (skips catalog selection for the platform)")
-	f.StringVar(&flags.appSecret, "app-secret-stdin", "", "read the app secret from stdin instead of prompting")
+	// A boolean, not a string: a string flag would let the secret be typed into
+	// argv, where `ps` exposes it (SEC-02).
+	f.BoolVar(&flags.secretStdin, "app-secret-stdin", false, "read the app secret from stdin instead of prompting")
 	f.StringVar(&flags.allowFrom, "allow-from", "", "comma-separated open_id allowlist for inbound messages")
 	f.BoolVar(&flags.nonInteract, "non-interactive", false, "never prompt; fail when a required value is missing")
 	f.BoolVar(&flags.fromCatalog, "from-catalog", true, "resolve agent commands from the ACP registry catalog")
@@ -260,13 +262,9 @@ func stepPlatform(ctx context.Context, out io.Writer, cfg *config.Config, flags 
 // useExistingApp stores credentials for an app the user already owns (LARK-02).
 func useExistingApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store) error {
 	appID := flags.appID
-	appSecret := flags.appSecret
-	if appSecret == "" {
-		var err error
-		appSecret, err = promptSecret(out, "Paste the app secret for "+appID+" (input hidden): ")
-		if err != nil {
-			return err
-		}
+	appSecret, err := readAppSecret(out, flags)
+	if err != nil {
+		return err
 	}
 	if strings.TrimSpace(appSecret) == "" {
 		return fmt.Errorf("app secret is empty")
@@ -333,6 +331,18 @@ func displayOr(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+// readAppSecret obtains the app secret without ever accepting it from argv.
+func readAppSecret(out io.Writer, flags *setupFlags) (string, error) {
+	if flags.secretStdin || !term.IsTerminal(int(os.Stdin.Fd())) {
+		secret, err := promptSecret(out, "")
+		if err != nil {
+			return "", err
+		}
+		return secret, nil
+	}
+	return promptSecret(out, "Paste the app secret (input hidden): ")
 }
 
 // promptSecret reads a secret without echoing it when stdin is a terminal.
