@@ -15,7 +15,9 @@ func (localCatalog) Fetch(context.Context) (catalog.Index, error) { return catal
 func TestCustomCatalogSourceLabel(t *testing.T) {
 	pluginkit.Register("test/local-catalog", func(struct {
 		CacheDir string `json:"cacheDir"`
-	}) (catalog.Source, error) { return localCatalog{}, nil })
+	}) (catalog.Source, error) {
+		return localCatalog{}, nil
+	})
 	previous := rootEnv
 	rootEnv = &env{catalogKind: "test/local-catalog"}
 	t.Cleanup(func() { rootEnv = previous })
