@@ -6,7 +6,6 @@
 package setup
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/lengzhao/AgentDock/config"
-	"github.com/lengzhao/AgentDock/credentials"
 )
 
 // Step identifies one unit of work in the flow.
@@ -135,36 +133,4 @@ const (
 	AccountAppSecret = "app-secret"
 )
 
-// PlatformRefs returns the credential references a configured install uses.
-func PlatformRefs() (appIDRef, appSecretRef string) {
-	appIDRef = credentials.KeyringRef(ServiceName, AccountAppID).String()
-	appSecretRef = credentials.KeyringRef(ServiceName, AccountAppSecret).String()
-	return appIDRef, appSecretRef
-}
-
-// StorePlatformCredentials writes both halves of the platform app credential and
-// verifies each reads back. When the second write fails the first is left in
-// place on purpose: a half-written pair is repairable, while deleting a
-// credential that may still be in use is not reversible.
-func StorePlatformCredentials(ctx context.Context, store credentials.Store, appID, appSecret string) error {
-	if appID == "" || appSecret == "" {
-		return fmt.Errorf("app id and app secret are both required")
-	}
-	if err := store.Set(ctx, ServiceName, AccountAppID, appID); err != nil {
-		return fmt.Errorf("store app id: %w", err)
-	}
-	if err := store.Set(ctx, ServiceName, AccountAppSecret, appSecret); err != nil {
-		return fmt.Errorf("store app secret: %w", err)
-	}
-	want := map[string]string{AccountAppID: appID, AccountAppSecret: appSecret}
-	for _, account := range []string{AccountAppID, AccountAppSecret} {
-		got, err := store.Get(ctx, ServiceName, account)
-		if err != nil {
-			return fmt.Errorf("read back %s: %w", account, err)
-		}
-		if got != want[account] {
-			return fmt.Errorf("read back %s returned a different value", account)
-		}
-	}
-	return nil
-}
+// Platform authentication persistence lives in platform.SaveLogin.

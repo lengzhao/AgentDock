@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lengzhao/AgentDock/access"
+	"github.com/lengzhao/AgentDock/config"
 	"github.com/lengzhao/AgentDock/credentials"
 	"github.com/lengzhao/AgentDock/setup"
 )
@@ -47,6 +48,24 @@ func newAccessCmd() *cobra.Command {
 		Use:   "access",
 		Short: "Manage the bot owner and allowed users",
 	}
+	cmd.PersistentFlags().StringVar(&rootEnv.accessPlatform, "platform", "", "platform owner to manage (default: primary platform)")
+	cmd.PersistentPreRunE = func(current *cobra.Command, args []string) error {
+		if root := current.Root(); root != cmd && root.PersistentPreRunE != nil {
+			if err := root.PersistentPreRunE(current, args); err != nil {
+				return err
+			}
+		}
+		if rootEnv.accessPlatform != "" {
+			cfg, err := rootEnv.loadConfig()
+			if err != nil {
+				return err
+			}
+			if _, ok := cfg.Connection(rootEnv.accessPlatform); !ok {
+				return fmt.Errorf("platform %q is not configured", rootEnv.accessPlatform)
+			}
+		}
+		return nil
+	}
 	cmd.AddCommand(
 		bind,
 		&cobra.Command{
@@ -66,8 +85,8 @@ func newAccessCmd() *cobra.Command {
 					fmt.Fprintln(out, "owner: (unbound) — run `agentdock access bind`")
 				default:
 					fmt.Fprintf(out, "owner: %s\n", st.OwnerOpenID)
-					if state, err := setup.LoadState(rootEnv.paths); err == nil {
-						_ = state.MarkDone(rootEnv.paths, setup.StepOwner)
+					if state, err := setup.LoadState(accessPaths()); err == nil {
+						_ = state.MarkDone(accessPaths(), setup.StepOwner)
 					}
 				}
 				if st.Challenge != "" {
@@ -125,6 +144,13 @@ func newAccessCmd() *cobra.Command {
 	return cmd
 }
 
-func accessFile() string {
-	return filepath.Join(rootEnv.paths.StateDir, "access.json")
+func accessPaths() config.Paths {
+	paths := rootEnv.paths
+	if rootEnv.accessPlatform != "" {
+		if cfg, err := rootEnv.loadConfig(); err == nil {
+			paths = paths.ForPlatform(rootEnv.accessPlatform, cfg.Platform.Kind)
+		}
+	}
+	return paths
 }
+func accessFile() string { return filepath.Join(accessPaths().StateDir, "access.json") }

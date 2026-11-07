@@ -23,7 +23,9 @@ func newStatusCmd() *cobra.Command {
 			switch {
 			case err == nil:
 				fmt.Fprintf(out, "config: %s\n", rootEnv.paths.ConfigFile)
-				fmt.Fprintf(out, "platform: %s (%s)\n", cfg.Platform.Kind, cfg.Platform.AppIDRef)
+				for _, connection := range cfg.Connections() {
+					fmt.Fprintf(out, "platform: %s (%s)\n", connection.Kind, connection.References()["id"])
+				}
 				for _, line := range runtime.Describe(cfg) {
 					fmt.Fprintf(out, "agent: %s\n", line)
 				}

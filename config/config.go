@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -34,16 +35,24 @@ const EnvHome = "AGENTDOCK_HOME"
 
 // Config is the whole user configuration.
 type Config struct {
-	Version   int      `yaml:"version"`
-	InstallID string   `yaml:"installId"`
-	Platform  Platform `yaml:"platform"`
-	Agents    []Agent  `yaml:"agents"`
-	Runtime   Runtime  `yaml:"runtime"`
-	Service   Service  `yaml:"service"`
+	// Platforms are additional connections; Platform preserves the primary legacy connection.
+	Platforms []Platform `yaml:"platforms,omitempty"`
+	Version   int        `yaml:"version"`
+	InstallID string     `yaml:"installId"`
+	Platform  Platform   `yaml:"platform"`
+	Agents    []Agent    `yaml:"agents"`
+	Runtime   Runtime    `yaml:"runtime"`
+	Service   Service    `yaml:"service"`
 }
 
 // Platform describes one messaging connection.
 type Platform struct {
+	// AuthPlugin overrides the registered login kind. Empty selects platform/auth-<kind>.
+	AuthPlugin string `yaml:"authPlugin,omitempty"`
+	// Credentials maps platform roles to references, never literal values.
+	Credentials map[string]string `yaml:"credentials,omitempty"`
+	// Settings contains non-sensitive platform metadata returned by login.
+	Settings map[string]string `yaml:"settings,omitempty"`
 	// Kind is the AgentKit platform kind to use: "lark" (international) or
 	// "feishu" (China). Empty means "lark".
 	Kind string `yaml:"kind"`
@@ -294,16 +303,40 @@ func (c Config) Validate() error {
 	if c.InstallID == "" {
 		return errors.New("installId is required")
 	}
+	if !platformName.MatchString(c.Platform.Kind) {
+		return errors.New("platform.kind must be a simple lowercase name")
+	}
 	switch c.Platform.Kind {
-	case "lark", "feishu":
+	case "lark", "feishu", "weixin":
 	default:
-		return fmt.Errorf("platform.kind must be lark or feishu, got %q", c.Platform.Kind)
+		if c.Platform.AuthPlugin == "" || strings.TrimSpace(c.Platform.Kind) == "" {
+			return fmt.Errorf("platform.kind requires a registered auth plugin for %q", c.Platform.Kind)
+		}
 	}
-	if _, err := credentials.ParseRef(c.Platform.AppIDRef); err != nil {
-		return fmt.Errorf("platform.appIdRef: %w", err)
+	if len(c.Platform.Credentials) > 0 && (c.Platform.AppIDRef != "" || c.Platform.AppSecretRef != "") {
+		return errors.New("platform.credentials cannot be combined with legacy app references")
 	}
-	if _, err := credentials.ParseRef(c.Platform.AppSecretRef); err != nil {
-		return fmt.Errorf("platform.appSecretRef: %w", err)
+	for name, value := range c.Platform.Settings {
+		if LooksLikeSecretName(name) && value != "" {
+			return errors.New("platform.settings must not contain credential values; use platform.credentials references")
+		}
+	}
+	refs := c.Platform.References()
+	if len(c.Platform.Credentials) == 0 {
+		if _, err := credentials.ParseRef(c.Platform.AppIDRef); err != nil {
+			return fmt.Errorf("platform.appIdRef: %w", err)
+		}
+		if _, err := credentials.ParseRef(c.Platform.AppSecretRef); err != nil {
+			return fmt.Errorf("platform.appSecretRef: %w", err)
+		}
+	}
+	if refs["id"] == "" || refs["secret"] == "" {
+		return errors.New("platform.credentials requires id and secret references")
+	}
+	for role, ref := range refs {
+		if _, err := credentials.ParseRef(ref); err != nil {
+			return fmt.Errorf("platform credential role %q must be a valid reference", role)
+		}
 	}
 	if len(c.Agents) == 0 {
 		return errors.New("at least one agent is required")
@@ -352,6 +385,19 @@ func (c Config) Validate() error {
 	if c.Service.ThrottleSeconds < 0 {
 		return errors.New("service.throttleSeconds must not be negative")
 	}
+	seenPlatforms := map[string]bool{c.Platform.Kind: true}
+	for _, connection := range c.Platforms {
+		if seenPlatforms[connection.Kind] {
+			return fmt.Errorf("platforms contains duplicate platform %q", connection.Kind)
+		}
+		seenPlatforms[connection.Kind] = true
+		candidate := c
+		candidate.Platform = connection
+		candidate.Platforms = nil
+		if err := candidate.Validate(); err != nil {
+			return fmt.Errorf("platforms[%s]: %w", connection.Kind, err)
+		}
+	}
 	return nil
 }
 
@@ -378,4 +424,71 @@ func LooksLikeSecretName(name string) bool {
 		}
 	}
 	return false
+}
+
+// References returns current role references, with legacy app references as fallback.
+func (p Platform) References() map[string]string {
+	refs := map[string]string{}
+	if len(p.Credentials) > 0 {
+		for k, v := range p.Credentials {
+			refs[k] = v
+		}
+		return refs
+	}
+	refs["id"] = p.AppIDRef
+	refs["secret"] = p.AppSecretRef
+	return refs
+}
+
+// LoginKind selects the platform's authentication plugin.
+func (p Platform) LoginKind() string {
+	if p.AuthPlugin != "" {
+		return p.AuthPlugin
+	}
+	return "platform/auth-" + p.Kind
+}
+
+var platformName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// Connections returns the primary connection followed by additional platforms.
+func (c Config) Connections() []Platform {
+	return append([]Platform{c.Platform}, c.Platforms...)
+}
+
+// Connection finds a configured platform. Empty selects the primary connection.
+func (c Config) Connection(kind string) (Platform, bool) {
+	if kind == "" {
+		return c.Platform, true
+	}
+	for _, p := range c.Connections() {
+		if p.Kind == kind {
+			return p, true
+		}
+	}
+	return Platform{}, false
+}
+
+// UpsertPlatform adds or updates only the selected platform. The first login
+// fills the default unconfigured primary slot; later logins preserve it.
+func (c *Config) UpsertPlatform(p Platform) {
+	if c.Platform.Kind == p.Kind || (c.Platform.References()["id"] == "" && len(c.Platforms) == 0) {
+		c.Platform = p
+		return
+	}
+	for i, existing := range c.Platforms {
+		if existing.Kind == p.Kind {
+			c.Platforms[i] = p
+			return
+		}
+	}
+	c.Platforms = append(c.Platforms, p)
+}
+
+// ForPlatform keeps the existing primary state path and isolates added platforms.
+// kind must come from a validated Config.Connection, never an arbitrary path.
+func (p Paths) ForPlatform(kind, primary string) Paths {
+	if kind != primary {
+		p.StateDir = filepath.Join(p.StateDir, "platforms", kind)
+	}
+	return p
 }

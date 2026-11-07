@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -44,7 +45,7 @@ func newConfigCmd() *cobra.Command {
 					return err
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "ok: %d agent(s), default %s, platform %s\n",
-					len(cfg.Agents), cfg.Runtime.DefaultAgent, cfg.Platform.Kind)
+					len(cfg.Agents), cfg.Runtime.DefaultAgent, strings.Join(platformNames(cfg), ","))
 				return nil
 			},
 		},

@@ -114,3 +114,17 @@ runner, result, err := runtime.BuildWithOverrides(ctx, cfg, layout, resolver,
 ```
 
 替换节点时显式提供完整 use/config/deps；依赖可以引用新增节点。调用方负责 runner.Run/Stop 生命周期。CLI 的 --service-plugin 和 --catalog-plugin 分别接收已注册的服务及目录 kind；默认启动参数会随服务安装保存。更换插件参数后需重新安装服务以更新启动参数。
+
+## 微信平台与统一认证
+
+- platform.Authenticator：登录与 owner 解析的插件契约；Login 不负责存储。
+- platform.SaveLogin：统一保存、独立回读验证，按安装/平台/批次隔离引用。
+- platform/lark.Auth、platform/weixin.Auth：各平台授权流程；CLI 不再写平台分支。
+- platform/weixin：原生 Go iLink 客户端、AgentKit Platform、owner 准入、游标保存、文本回复及请求绑定审批。
+- config.Platform.Credentials：通用角色引用；兼容旧 appIdRef/appSecretRef。新登录不能与旧字段混用。
+- 旧 Lark RegisterApp 便利 API 也走 SaveLogin；需要 Installation 参数，返回 References。固定全局凭据写入 helper 已移除。
+- 能力边界及操作步骤见 [weixin.md](weixin.md)。媒体、群聊、选择题审批未实现；模拟测试不是实际账号 E2E 证据。
+
+## 多平台并行连接
+
+Config.Platform 保留主连接；Config.Platforms 是附加连接列表。Connections/Connection/UpsertPlatform 是统一访问边界。Paths.ForPlatform 保留主连接状态路径，并给新增平台分配独立状态目录。runtime 使用 AgentKit platform/multiplex；共享 Agent、会话底座和根任务库。setup --platform weixin 会追加连接，且不指定 --agent 时保留已有 Agent 配置。access --platform 和 verify --platform 管理指定连接。

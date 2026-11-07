@@ -46,7 +46,7 @@ type Provider struct {
 
 func init() { pluginkit.Register(Kind, New) }
 func New(cfg Config, deps Deps) (*Provider, error) {
-	if !filepath.IsAbs(cfg.Path) || !filepath.IsAbs(cfg.AccessPath) || deps.Store == nil || (cfg.Platform != "lark" && cfg.Platform != "feishu") {
+	if !filepath.IsAbs(cfg.Path) || !filepath.IsAbs(cfg.AccessPath) || deps.Store == nil || cfg.Platform == "" {
 		return nil, errors.New("env command requires local config, access state, platform and credential store")
 	}
 	return &Provider{cfg: cfg, deps: deps}, nil

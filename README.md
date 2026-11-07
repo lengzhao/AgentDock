@@ -91,3 +91,7 @@ The project is in its design phase. Issues discussing concrete setup workflows, 
 ## License
 
 [MIT](LICENSE)
+
+## Weixin ClawBot / iLink
+
+A native Go platform plugin and shared authentication plugins support private text conversations. Live account verification still requires QR login. See [Weixin setup and extension guide](docs/weixin.md) for usage and current limitations.

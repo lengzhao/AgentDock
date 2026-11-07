@@ -60,8 +60,8 @@ func TestRegistrationBootstrapsOnFeishuAndConfirmsOnSelectedBrand(t *testing.T) 
 			})}
 			var page string
 			store := credentials.NewMemoryStore()
-			_, err := RegisterApp(context.Background(), RegisterOptions{
-				Kind: tc.kind, TenantBrand: tc.brand, NoAddons: true, Store: store,
+			reg, err := RegisterApp(context.Background(), RegisterOptions{
+				Installation: "test-install", Kind: tc.kind, TenantBrand: tc.brand, NoAddons: true, Store: store,
 				OpenURL: func(u string) { page = u },
 			})
 			if err != nil {
@@ -77,7 +77,7 @@ func TestRegistrationBootstrapsOnFeishuAndConfirmsOnSelectedBrand(t *testing.T) 
 			if u.Query().Get("user_code") != "test-code" {
 				t.Error("confirmation user code changed")
 			}
-			if got, err := store.Get(context.Background(), RegistrationService, AccountAppSecret); err != nil || got != "test-secret" {
+			if got, err := credentials.NewResolver(store, nil).Resolve(context.Background(), reg.References["secret"]); err != nil || got != "test-secret" {
 				t.Fatal("credentials were not stored")
 			}
 		})

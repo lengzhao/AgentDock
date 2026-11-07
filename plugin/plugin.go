@@ -8,6 +8,8 @@ package plugin
 
 import (
 	"fmt"
+	_ "github.com/lengzhao/AgentDock/platform/lark"
+	_ "github.com/lengzhao/AgentDock/platform/weixin"
 
 	"github.com/lengzhao/agentkit/cap/ingress"
 	"github.com/lengzhao/pluginkit"

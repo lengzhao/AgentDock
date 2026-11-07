@@ -18,6 +18,7 @@ const VerificationNonceEnv = "AGENTDOCK_VERIFY_NONCE"
 
 func newVerifyCmd() *cobra.Command {
 	var timeout time.Duration
+	var selectedPlatform string
 	cmd := &cobra.Command{
 		Use:   "verify",
 		Short: "Send a real end-to-end test message and record the result",
@@ -32,16 +33,21 @@ the bot. A WebSocket that connects but never delivers a message is not a pass
 			if err != nil {
 				return err
 			}
+			connection, ok := cfg.Connection(selectedPlatform)
+			if !ok {
+				return fmt.Errorf("platform %q is not configured", selectedPlatform)
+			}
+			paths := rootEnv.paths.ForPlatform(connection.Kind, cfg.Platform.Kind)
 			nonce, err := newNonce()
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "Send this token to the bot in a direct message:\n\n    %s\n\n", nonce)
+			fmt.Fprintf(out, "Send this token to the %s bot in a direct message:\n\n    %s\n\n", connection.Kind, nonce)
 			fmt.Fprintf(out, "Waiting up to %s for the reply…\n", timeout)
 			// The bot marks success when it handles the token; this command waits for
 			// that marker file rather than asserting success from a connection check.
 			deadline := time.Now().Add(timeout)
-			marker := doctor.VerifyMarkerFile(rootEnv.paths)
+			marker := doctor.VerifyMarkerFile(paths)
 			for time.Now().Before(deadline) {
 				select {
 				case <-cmd.Context().Done():
@@ -53,18 +59,19 @@ the bot. A WebSocket that connects but never delivers a message is not a pass
 					return err
 				}
 				if ok {
-					if err := doctor.RecordEndToEnd(rootEnv.paths, time.Now()); err != nil {
+					if err := doctor.RecordEndToEnd(paths, time.Now()); err != nil {
 						return err
 					}
-					state, _ := setup.LoadState(rootEnv.paths)
-					_ = state.MarkDone(rootEnv.paths, setup.StepVerify)
+					state, _ := setup.LoadState(paths)
+					_ = state.MarkDone(paths, setup.StepVerify)
 					fmt.Fprintln(out, "End-to-end verified: the bot received the token and replied.")
 					return nil
 				}
 			}
-			return WithExitCode(1, fmt.Errorf("no end-to-end confirmation within %s; the bot did not handle the token.\nCheck `agentdock doctor` and the service log. Platform: %s", timeout, cfg.Platform.Kind))
+			return WithExitCode(1, fmt.Errorf("no end-to-end confirmation within %s; the bot did not handle the token.\nCheck `agentdock doctor` and the service log. Platform: %s", timeout, connection.Kind))
 		},
 	}
+	cmd.Flags().StringVar(&selectedPlatform, "platform", "", "platform to verify (default: primary platform)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "how long to wait for the reply")
 	return cmd
 }

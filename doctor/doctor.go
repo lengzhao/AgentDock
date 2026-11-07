@@ -112,17 +112,17 @@ func Run(ctx context.Context, opt Options) Report {
 		// than of the install.
 		ephemeral := strings.HasPrefix(st.Backend, "memory")
 		if opt.Config != nil && st.Available && !ephemeral {
-			for _, ref := range []struct{ name, value string }{
-				{"platform.appIdRef", opt.Config.Platform.AppIDRef},
-				{"platform.appSecretRef", opt.Config.Platform.AppSecretRef},
-			} {
-				if _, err := credentials.NewResolver(opt.Store, os.LookupEnv).Resolve(ctx, ref.value); err != nil {
-					rep.Checks = append(rep.Checks, Check{Name: "credentials/" + ref.name, Level: LevelFail,
-						Detail: err.Error()})
-					continue
+			for _, connection := range opt.Config.Connections() {
+				for role, value := range connection.References() {
+					ref := struct{ name, value string }{connection.Kind + "." + role, value}
+					if _, err := credentials.NewResolver(opt.Store, os.LookupEnv).Resolve(ctx, ref.value); err != nil {
+						rep.Checks = append(rep.Checks, Check{Name: "credentials/" + ref.name, Level: LevelFail,
+							Detail: err.Error()})
+						continue
+					}
+					rep.Checks = append(rep.Checks, Check{Name: "credentials/" + ref.name, Level: LevelOK,
+						Detail: "readable"})
 				}
-				rep.Checks = append(rep.Checks, Check{Name: "credentials/" + ref.name, Level: LevelOK,
-					Detail: "readable"})
 			}
 		} else if opt.Config != nil && ephemeral {
 			rep.Checks = append(rep.Checks, Check{Name: "credentials/refs", Level: LevelSkip,
@@ -192,6 +192,20 @@ func Run(ctx context.Context, opt Options) Report {
 	} else {
 		rep.Checks = append(rep.Checks, Check{Name: "end-to-end", Level: LevelSkip,
 			Detail: "no successful test message recorded; run `agentdock verify`"})
+	}
+	if opt.Config != nil {
+		for _, connection := range opt.Config.Platforms {
+			paths := opt.Paths.ForPlatform(connection.Kind, opt.Config.Platform.Kind)
+			check := Check{Name: "end-to-end/" + connection.Kind, Level: LevelSkip, Detail: "not verified; run agentdock verify --platform " + connection.Kind}
+			if ts, ok := loadEndToEnd(paths); ok {
+				check.Level = LevelOK
+				check.Detail = "last verified " + ts.Format(time.RFC3339)
+				if time.Since(ts) > 30*24*time.Hour {
+					check.Level = LevelWarn
+				}
+			}
+			rep.Checks = append(rep.Checks, check)
+		}
 	}
 	return rep
 }

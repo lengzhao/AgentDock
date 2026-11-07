@@ -132,3 +132,29 @@ func TestBuildAssemblesRunner(t *testing.T) {
 		t.Fatalf("instances = %d, want the full graph", len(result.Instances))
 	}
 }
+
+func TestWeixinGraphAndRunnerAssembly(t *testing.T) {
+	cfg := testConfig()
+	cfg.Platform.Kind = "weixin"
+	cfg.Platform.AppIDRef = ""
+	cfg.Platform.AppSecretRef = ""
+	cfg.Platform.Credentials = map[string]string{"id": "env:WEIXIN_ID", "secret": "env:WEIXIN_TOKEN", "owner": "env:WEIXIN_OWNER"}
+	cfg.Platform.Settings = map[string]string{"baseUrl": "https://ilinkai.weixin.qq.com"}
+	layout := runtime.Layout{Home: t.TempDir(), InstanceDir: t.TempDir(), StateDir: t.TempDir()}
+	graph, _, err := runtime.Graph(cfg, layout, runtime.Secrets{AppID: "bot", AppSecret: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := graph["platform.main"].(runtime.Node)
+	if node["use"] != "platform/weixin" {
+		t.Fatalf("kind %v", node["use"])
+	}
+	if node["config"].(runtime.Node)["token"] != "token" {
+		t.Fatal("token not injected")
+	}
+	res := credentials.NewResolver(credentials.NewMemoryStore(), func(string) (string, bool) { return "value", true })
+	runner, _, err := runtime.Build(context.Background(), cfg, layout, res)
+	if err != nil || runner == nil {
+		t.Fatalf("weixin assembly: %v", err)
+	}
+}

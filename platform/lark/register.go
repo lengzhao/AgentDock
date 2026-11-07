@@ -18,6 +18,7 @@ import (
 	"github.com/mdp/qrterminal/v3"
 
 	"github.com/lengzhao/AgentDock/credentials"
+	"github.com/lengzhao/AgentDock/platform"
 )
 
 // ErrNotSupported means the registry says this flow cannot run for this tenant.
@@ -45,6 +46,8 @@ var (
 
 // RegisterOptions configures one registration attempt.
 type RegisterOptions struct {
+	// Installation scopes credentials returned by the public convenience API.
+	Installation string
 	// Kind is "lark" or "feishu"; it selects the confirmation page's edition.
 	Kind string
 	// AppName is pre-filled on the confirmation page.
@@ -66,7 +69,10 @@ type RegisterOptions struct {
 
 // Registration is the result of a successful registration.
 type Registration struct {
-	AppID string
+	// References contains credential references after RegisterApp persistence.
+	References map[string]string
+	secret     string
+	AppID      string
 	// SecretFingerprint is a printable, non-reversible hint for logs.
 	SecretFingerprint string
 	// OwnerOpenID is the id of the user who scanned, when the tenant returns it.
@@ -79,9 +85,24 @@ type Registration struct {
 // credentials. The credentials are stored and read back before RegisterApp
 // reports success, so a failed keychain write cannot look like a win.
 func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error) {
-	if opt.Store == nil {
+	if opt.Store == nil || opt.Installation == "" {
 		return Registration{}, fmt.Errorf("registration needs a credential store")
 	}
+	reg, err := authorizeApp(ctx, opt)
+	if err != nil {
+		return Registration{}, err
+	}
+	saved, err := platform.SaveLogin(ctx, opt.Store, opt.Installation, opt.Kind, platform.LoginResult{Credentials: map[string]string{"id": reg.AppID, "secret": reg.secret}})
+	if err != nil {
+		return Registration{}, err
+	}
+	reg.References = saved.References
+	reg.secret = ""
+	return reg, nil
+}
+
+// authorizeApp performs authorization only; common platform auth persists results.
+func authorizeApp(ctx context.Context, opt RegisterOptions) (Registration, error) {
 	if opt.Out == nil {
 		opt.Out = io.Discard
 	}
@@ -156,12 +177,8 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 		return Registration{}, fmt.Errorf("registration returned no credentials")
 	}
 
-	// Persist first, and only report success once read-back matches.
-	if err := storeRegistration(ctx, opt.Store, result.ClientID, result.ClientSecret); err != nil {
-		return Registration{}, fmt.Errorf("store registered credentials: %w", err)
-	}
-
 	reg := Registration{
+		secret:            result.ClientSecret,
 		AppID:             result.ClientID,
 		SecretFingerprint: credentials.Fingerprint(result.ClientSecret),
 	}
@@ -170,41 +187,6 @@ func RegisterApp(ctx context.Context, opt RegisterOptions) (Registration, error)
 		reg.TenantBrand = result.UserInfo.TenantBrand
 	}
 	return reg, nil
-}
-
-func storeRegistration(ctx context.Context, store credentials.Store, appID, appSecret string) error {
-	if err := store.Set(ctx, RegistrationService, AccountAppID, appID); err != nil {
-		return err
-	}
-	if err := store.Set(ctx, RegistrationService, AccountAppSecret, appSecret); err != nil {
-		return fmt.Errorf("store app secret: %w", err)
-	}
-	for account, want := range map[string]string{AccountAppID: appID, AccountAppSecret: appSecret} {
-		got, err := store.Get(ctx, RegistrationService, account)
-		if err != nil {
-			return fmt.Errorf("read back %s: %w", account, err)
-		}
-		if got != want {
-			return fmt.Errorf("read back %s returned a different value", account)
-		}
-	}
-	return nil
-}
-
-// Credential store coordinates used for the platform app.
-const (
-	// RegistrationService is the keyring service name.
-	RegistrationService = "platform"
-	// AccountAppID and AccountAppSecret are the keyring accounts.
-	AccountAppID     = "app-id"
-	AccountAppSecret = "app-secret"
-)
-
-// Refs returns the credential references a registered install should store in
-// config.yaml.
-func Refs() (appIDRef, appSecretRef string) {
-	return credentials.KeyringRef(RegistrationService, AccountAppID).String(),
-		credentials.KeyringRef(RegistrationService, AccountAppSecret).String()
 }
 
 func brandName(kind string) string {

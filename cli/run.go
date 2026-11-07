@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/lengzhao/AgentDock/config"
 	"github.com/lengzhao/AgentDock/credentials"
 	"github.com/lengzhao/AgentDock/lock"
 	"github.com/lengzhao/AgentDock/runtime"
@@ -86,7 +87,7 @@ func runForeground(cmd *cobra.Command) error {
 		return err
 	}
 	slog.Info("agentdock starting",
-		"platform", cfg.Platform.Kind,
+		"platforms", platformNames(cfg),
 		"defaultAgent", cfg.Runtime.DefaultAgent,
 		"agents", len(cfg.Agents))
 
@@ -103,4 +104,12 @@ func runForeground(cmd *cobra.Command) error {
 		return fmt.Errorf("runner exited: %w", runErr)
 	}
 	return nil
+}
+
+func platformNames(cfg config.Config) []string {
+	names := make([]string, 0, len(cfg.Connections()))
+	for _, p := range cfg.Connections() {
+		names = append(names, p.Kind)
+	}
+	return names
 }

@@ -198,3 +198,56 @@ func TestWriteFileAtomicKeepsOldFileOnFailure(t *testing.T) {
 func writeAtomicToDir(path string, data []byte) (int, error) {
 	return len(data), WriteFileAtomic(path, data)
 }
+
+func TestWeixinAndExternalAuthCredentialReferences(t *testing.T) {
+	for _, kind := range []string{"weixin", "custom"} {
+		cfg := validConfig()
+		cfg.Platform.Kind = kind
+		cfg.Platform.Credentials = map[string]string{"id": "env:BOT_ID", "secret": "env:BOT_TOKEN", "owner": "env:OWNER"}
+		cfg.Platform.AppIDRef = ""
+		cfg.Platform.AppSecretRef = ""
+		if kind == "custom" {
+			cfg.Platform.AuthPlugin = "example/auth"
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Platform.References()["secret"] != "env:BOT_TOKEN" {
+			t.Fatal("missing reference")
+		}
+	}
+}
+
+func TestAdditionalPlatformRoundTripAndIsolation(t *testing.T) {
+	cfg := validConfig()
+	extra := Platform{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN"}}
+	cfg.UpsertPlatform(extra)
+	if len(cfg.Connections()) != 2 || cfg.Platform.Kind != "lark" {
+		t.Fatal("primary platform replaced")
+	}
+	if _, ok := cfg.Connection("weixin"); !ok {
+		t.Fatal("added platform not found")
+	}
+	file := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Save(file, cfg); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Connections()) != 2 {
+		t.Fatal("platforms not persisted")
+	}
+	paths := ResolvePaths(t.TempDir())
+	if paths.ForPlatform("lark", "lark").StateDir != paths.StateDir {
+		t.Fatal("legacy state moved")
+	}
+	if paths.ForPlatform("weixin", "lark").StateDir == paths.StateDir {
+		t.Fatal("owner states shared")
+	}
+	loaded.Platforms = append(loaded.Platforms, extra)
+	if err := loaded.Validate(); err == nil {
+		t.Fatal("duplicate platform accepted")
+	}
+}

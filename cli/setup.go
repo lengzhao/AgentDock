@@ -14,16 +14,18 @@ import (
 	"golang.org/x/term"
 
 	"github.com/lengzhao/AgentDock/agent"
+	"github.com/lengzhao/AgentDock/assembly"
 	"github.com/lengzhao/AgentDock/catalog"
 	"github.com/lengzhao/AgentDock/config"
 	"github.com/lengzhao/AgentDock/credentials"
-	"github.com/lengzhao/AgentDock/platform/lark"
+	"github.com/lengzhao/AgentDock/platform"
 	"github.com/lengzhao/AgentDock/setup"
 )
 
 type setupFlags struct {
 	agentIDs     []string
 	platformKind string
+	authPlugin   string
 	appID        string
 	secretStdin  bool
 	allowFrom    string
@@ -50,7 +52,8 @@ holds references.`,
 	}
 	f := cmd.Flags()
 	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude-acp,codex-acp")
-	f.StringVar(&flags.platformKind, "platform", "lark", "platform: lark (international) or feishu (China)")
+	f.StringVar(&flags.platformKind, "platform", "", "platform: lark, feishu, weixin (default: existing platform or lark)")
+	f.StringVar(&flags.authPlugin, "platform-auth", "", "registered platform authentication plugin kind")
 	f.StringVar(&flags.appID, "app-id", "", "existing platform app id (skips catalog selection for the platform)")
 	// A boolean, not a string: a string flag would let the secret be typed into
 	// argv, where `ps` exposes it (SEC-02).
@@ -125,8 +128,15 @@ func runSetup(cmd *cobra.Command, flags *setupFlags) error {
 
 	fmt.Fprintf(out, "\nNext steps:\n")
 	fmt.Fprintf(out, "  agentdock run                 # foreground, verify the connection\n")
-	fmt.Fprintf(out, "  agentdock verify              # send a real end-to-end test message\n")
+	target := flags.platformKind
+	if target == "" {
+		target = cfg.Platform.Kind
+	}
+	fmt.Fprintf(out, "  agentdock verify --platform %s  # verify the selected platform\n", target)
 	fmt.Fprintf(out, "  agentdock service install     # run in the background\n")
+	if len(cfg.Connections()) > 1 {
+		fmt.Fprintln(out, "  agentdock service restart     # reload all configured platforms if already installed")
+	}
 	if next := state.NextStep(); next != "" {
 		fmt.Fprintf(out, "\nRemaining setup steps: %s\n", strings.Join(remainingSteps(state), ", "))
 	}
@@ -145,6 +155,10 @@ func remainingSteps(state setup.State) []string {
 
 func stepAgents(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags) error {
 	ids := flags.agentIDs
+	if len(ids) == 0 && len(cfg.Agents) > 0 {
+		fmt.Fprintf(out, "Keeping %d configured agent(s), default %s.\n", len(cfg.Agents), cfg.Runtime.DefaultAgent)
+		return nil
+	}
 	if len(ids) == 0 {
 		ids = []string{"claude-acp", "codex-acp"}
 		if flags.nonInteract {
@@ -257,89 +271,63 @@ func resolveAgent(index catalog.Index, id string) (config.Agent, error) {
 }
 
 func stepPlatform(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store, state *setup.State) error {
-	switch flags.platformKind {
-	case "lark", "feishu":
-		cfg.Platform.Kind = flags.platformKind
-	default:
-		return fmt.Errorf("--platform must be lark or feishu, got %q", flags.platformKind)
+	kind := flags.platformKind
+	if kind == "" {
+		kind = cfg.Platform.Kind
 	}
-	cfg.Platform.AllowFrom = flags.allowFrom
-
-	if flags.appID != "" {
-		return useExistingApp(ctx, out, cfg, flags, store)
+	if kind == "" {
+		kind = "lark"
 	}
-	return registerApp(ctx, out, cfg, flags, store, state)
-}
-
-// useExistingApp stores credentials for an app the user already owns (LARK-02).
-func useExistingApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store) error {
-	appID := flags.appID
-	appSecret, err := readAppSecret(out, flags)
+	candidate, exists := cfg.Connection(kind)
+	if !exists {
+		candidate = config.Platform{Kind: kind}
+	}
+	if flags.authPlugin != "" {
+		candidate.AuthPlugin = flags.authPlugin
+	}
+	auth, err := assembly.Open[platform.Authenticator](ctx, candidate.LoginKind(), nil)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(appSecret) == "" {
-		return fmt.Errorf("app secret is empty")
-	}
-	if err := setup.StorePlatformCredentials(ctx, store, appID, appSecret); err != nil {
-		return fmt.Errorf("store platform credentials: %w", err)
-	}
-	appIDRef, appSecretRef := setup.PlatformRefs()
-	cfg.Platform.AppIDRef = appIDRef
-	cfg.Platform.AppSecretRef = appSecretRef
-	fmt.Fprintf(out, "Stored app credentials for %s in the credential store (%s) and verified read-back.\n",
-		appID, store.Status(ctx).Backend)
-	return nil
-}
-
-// registerApp runs the official scan-to-create flow (LARK-01).
-//
-// Registration is an external side effect: the state flag is set before the flow
-// starts and only cleared after the credentials are safely stored, so an
-// interrupted run tells the next one to check the console instead of creating a
-// second application (SET-02).
-func registerApp(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store, state *setup.State) error {
-	if flags.nonInteract {
-		return fmt.Errorf("--app-id is required with --non-interactive; scan registration needs a human to confirm")
-	}
-	fmt.Fprintf(out, "No --app-id given: starting %s scan registration.\n", displayOr(flags.platformKind, "lark"))
-	state.PendingPlatform = true
-	state.PendingAppID = ""
-	if err := setup.Save(rootEnv.paths, *state); err != nil {
-		return err
-	}
-
-	reg, err := lark.RegisterApp(ctx, lark.RegisterOptions{
-		Kind:        cfg.Platform.Kind,
-		Store:       store,
-		Out:         out,
-		NoAddons:    flags.noAddons,
-		TenantBrand: flags.tenantBrand,
-		AppName: func() string {
-			return "AgentDock"
-		}(),
+	result, err := auth.Login(ctx, platform.LoginRequest{
+		Out: out, ExistingID: flags.appID, NonInteractive: flags.nonInteract,
+		ReadSecret: func() (string, error) { return readAppSecret(out, flags) },
+		ReadCode:   func() (string, error) { return promptSecret(out, "Enter the verification code shown on your phone: ") },
+		Options:    map[string]string{"tenantBrand": flags.tenantBrand, "noAddons": fmt.Sprint(flags.noAddons)},
+		BeforeRemote: func() error {
+			state.PendingPlatform = true
+			state.PendingAppID = ""
+			return setup.Save(rootEnv.paths, *state)
+		},
 	})
 	if err != nil {
-		// Leave PendingPlatform set: the user must reconcile before retrying.
 		return err
 	}
-
-	appIDRef, appSecretRef := lark.Refs()
-	cfg.Platform.AppIDRef = appIDRef
-	cfg.Platform.AppSecretRef = appSecretRef
+	if previousRef := candidate.References()["id"]; previousRef != "" {
+		previousID, err := credentials.NewResolver(store, os.LookupEnv).Resolve(ctx, previousRef)
+		if err != nil {
+			return fmt.Errorf("cannot verify existing platform identity; restore credential access or use a separate --home")
+		}
+		if result.Credentials["id"] != previousID {
+			return fmt.Errorf("login selected a different platform account; use a separate --home to preserve the current owner and sessions")
+		}
+	}
+	saved, err := platform.SaveLogin(ctx, store, cfg.InstallID, kind, result)
+	if err != nil {
+		return err
+	}
+	candidate.Credentials = saved.References
+	candidate.Settings = saved.Settings
+	candidate.AppIDRef = ""
+	candidate.AppSecretRef = ""
+	candidate.AllowFrom = flags.allowFrom
+	cfg.UpsertPlatform(candidate)
 	state.PendingPlatform = false
 	state.PendingAppID = ""
 	if err := setup.Save(rootEnv.paths, *state); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "\nCreated app %s (secret %s) and stored both in the credential store.\n",
-		reg.AppID, reg.SecretFingerprint)
-	if flags.noAddons {
-		fmt.Fprintf(out, "\nPermissions were NOT prefilled. In the developer console for %s, add:\n", reg.AppID)
-		fmt.Fprintf(out, "  scopes: %s\n", strings.Join(lark.TenantScopes, ", "))
-		fmt.Fprintf(out, "  events: %s\n", strings.Join(lark.TenantEvents, ", "))
-		fmt.Fprintf(out, "\nThen enable the bot and use long-connection (长连接) event delivery.\n")
-	}
+	fmt.Fprintln(out, "Platform login saved and verified (configuration contains references only).")
 	return nil
 }
 

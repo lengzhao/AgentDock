@@ -1,6 +1,6 @@
 # AgentDock 架构方案
 
-日期：2026-11-07；状态：已存在实现，具体交付状态见 development.md。首版 macOS + Lark；后续扩展多系统、多 IM、多 Agent。
+日期：2026-11-07；状态：已存在实现，具体交付状态见 development.md。当前实现面向 macOS，支持 Lark/飞书及微信 iLink 私聊文本；微信真实账号 E2E 尚待验证。
 
 ## 1. 方案选择
 
@@ -106,3 +106,15 @@ Secret、刷新令牌以及敏感恢复令牌进入 Keychain；临时 access tok
 runtime.GraphWithOverrides 和 BuildWithOverrides 接受按实例 ID 提供的完整节点，支持替换平台、Agent 所在 loop、会话、工作区、文件系统、遥测、命令及准入策略，也可新增依赖节点。节点的 use/config/deps 一并替换，PluginKit 在构造时验证依赖接口。默认图不变，默认所有者和去重链继续启用。替换准入策略的扩展须自行保持授权语义。
 
 纯数据与工具包保持普通公开 Go 包；可替换的有状态依赖使用小接口。当前 setup 和 owner 查询仍针对 Lark/飞书，新增 IM 需要相应引导适配；运行图覆盖不代表该平台已获得完整产品支持。此版本不提供动态二进制加载或热替换。
+
+## 10. 平台登录插件
+
+平台运行插件与登录插件分离：Authenticator.Login 执行外部授权并返回统一 LoginResult；公共 SaveLogin 完成存储和回读验证，返回只含引用的 SavedLogin；CLI 原子写入配置并通过 Authenticator.Owner 解析可信身份。Lark、飞书、微信均复用该流程，credentials.Store 后端独立替换。新增平台不再扩展 CLI 登录 switch。
+
+Weixin 实现直接使用 iLink HTTP API，通过 platform/weixin 接入同一个 AgentKit runner。一个安装可同时连接多个不同平台，经 AgentKit multiplex 进入共享 runner；同种平台的多个账号仍需独立 home 和服务 label。当前微信仅支持私聊文本；真实账号验证和媒体功能的状态见 docs/weixin.md。
+
+## 11. 同时连接多个平台
+
+保留 platform 主连接字段及其原状态目录，附加连接保存到 platforms 列表。setup --platform 按 kind 追加或更新，未指定 --agent 时保留 Agent 配置。所有连接共享 Agent、loop、会话底座与任务数据库；附加连接的 owner、验证 marker、游标使用独立子目录。主连接仍可读取旧凭据引用，不因新增平台而迁移。
+
+运行装配通过 platform/multiplex 聚合，回复沿原连接路由。access 与 verify 可用 --platform 选择目标；doctor/status 遍历全部连接。setup 后需要重启已安装服务以加载新增连接。

@@ -47,6 +47,8 @@ type Secrets struct {
 	AppID     string
 	AppSecret string
 	AgentEnv  map[string]map[string]string
+	// Platforms holds resolved secrets for additional connections, keyed by kind.
+	Platforms map[string]Secrets
 }
 
 // Graph builds the pluginkit instance graph for cfg. Every secret is injected
@@ -63,7 +65,7 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 	if err := cfg.Validate(); err != nil {
 		return nil, "", err
 	}
-	platformKind := "platform/lark"
+	platformKind := "platform/" + cfg.Platform.Kind
 	domain := "https://open.larksuite.com"
 	if cfg.Platform.Kind == "feishu" {
 		platformKind = "platform/feishu"
@@ -207,6 +209,16 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 		"telemetry.default": Node{"use": "telemetry/none"},
 		"telemetry.toolkit": Node{"use": "telemetry/toolkit"},
 	}
+	if cfg.Platform.Kind == "weixin" {
+		graph["platform.main"].(Node)["config"] = Node{
+			"botId": secrets.AppID, "token": secrets.AppSecret, "baseUrl": cfg.Platform.Settings["baseUrl"],
+			"cursorPath": filepath.Join(layout.StateDir, "weixin-cursor.json"),
+			"allowFrom":  cfg.Platform.AllowFrom, "sessionScope": cfg.Runtime.SessionScope,
+		}
+		deps := graph["platform.main"].(Node)["deps"].(Node)
+		delete(deps, "workspace")
+		delete(deps, "sessionStore")
+	}
 	platformDeps := graph["platform.main"].(Node)["deps"].(Node)
 	graph["env.default"] = Node{
 		"use":    envslash.Kind,
@@ -218,6 +230,53 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 	}
 	platformDeps["inboundPolicy"] = "env.default"
 	graph["runner.default"].(Node)["deps"].(Node)["init"] = []any{"env.default"}
+
+	if len(cfg.Platforms) > 0 {
+		platformIDs := []any{"platform.main"}
+		initializers := []any{"env.default"}
+		for _, connection := range cfg.Platforms {
+			single := cfg
+			single.Platform = connection
+			single.Platforms = nil
+			scoped := layout
+			scoped.StateDir = filepath.Join(layout.StateDir, "platforms", connection.Kind)
+			resolved := secrets.Platforms[connection.Kind]
+			resolved.AgentEnv = secrets.AgentEnv
+			extra, _, err := Graph(single, scoped, resolved)
+			if err != nil {
+				return nil, "", err
+			}
+			ids := map[string]string{
+				"platform.main":    "platform." + connection.Kind,
+				"commands.default": "commands." + connection.Kind,
+				"env.default":      "env." + connection.Kind,
+			}
+			for _, source := range []string{"platform.main", "commands.default", "env.default"} {
+				node := extra[source].(Node)
+				rewriteNodeDependencies(node, ids)
+				// Access/verification/cursor state is per connection; task records stay in
+				// the single operational DB used by tasks, recovery and retention.
+				sharedRecordDB(node, filepath.Join(layout.StateDir, "state.db"))
+				graph[ids[source]] = node
+			}
+			platformIDs = append(platformIDs, ids["platform.main"])
+			initializers = append(initializers, ids["env.default"])
+		}
+		graph["platform.multiplex"] = Node{"use": "platform/multiplex", "deps": Node{"platforms": platformIDs}}
+		rootDeps := graph["runner.default"].(Node)["deps"].(Node)
+		rootDeps["platform"] = "platform.multiplex"
+		rootDeps["init"] = initializers
+
+		for index, connection := range cfg.Connections() {
+			commandID, envID := "commands.default", "env.default"
+			if index > 0 {
+				commandID, envID = "commands."+connection.Kind, "env."+connection.Kind
+			}
+			node := graph[commandID].(Node)
+			node["use"] = scopedCommandsKind
+			node["config"] = Node{"provider": envID, "scopedProviders": initializers}
+		}
+	}
 	for id, node := range overrides {
 		kind, _ := node["use"].(string)
 		if strings.TrimSpace(id) == "" || strings.TrimSpace(kind) == "" {
@@ -238,21 +297,26 @@ func BuildWithOverrides(ctx context.Context, cfg config.Config, layout Layout, r
 	// A missing credential is the most common first-run failure, so the message
 	// names the reference and the command that fixes it instead of only the
 	// backend error.
-	appID, err := res.Resolve(ctx, cfg.Platform.AppIDRef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("platform app id (%s): %w\nrun `agentdock doctor` to check the credential store, or `agentdock setup --app-id <id>` to store it again",
-			cfg.Platform.AppIDRef, err)
+	resolvedPlatforms := make(map[string]Secrets, len(cfg.Connections()))
+	for _, connection := range cfg.Connections() {
+		values := map[string]string{}
+		for role, ref := range connection.References() {
+			value, err := res.Resolve(ctx, ref)
+			if err != nil {
+				return nil, nil, fmt.Errorf("resolve %s platform credential %s failed; run agentdock setup or doctor", connection.Kind, role)
+			}
+			values[role] = value
+		}
+		resolvedPlatforms[connection.Kind] = Secrets{AppID: values["id"], AppSecret: values["secret"]}
 	}
-	appSecret, err := res.Resolve(ctx, cfg.Platform.AppSecretRef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("platform app secret (%s): %w\nrun `agentdock doctor` to check the credential store, or `agentdock setup --app-id <id>` to store it again",
-			cfg.Platform.AppSecretRef, err)
-	}
+	resolved := resolvedPlatforms[cfg.Platform.Kind]
+	resolved.Platforms = resolvedPlatforms
 	agentEnv, err := ResolveAgentEnvironment(ctx, cfg, res)
 	if err != nil {
 		return nil, nil, err
 	}
-	graph, rootID, err := GraphWithOverrides(cfg, layout, Secrets{AppID: appID, AppSecret: appSecret, AgentEnv: agentEnv}, overrides)
+	resolved.AgentEnv = agentEnv
+	graph, rootID, err := GraphWithOverrides(cfg, layout, resolved, overrides)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -260,10 +324,16 @@ func BuildWithOverrides(ctx context.Context, cfg config.Config, layout Layout, r
 	if err != nil {
 		return nil, nil, fmt.Errorf("assemble runner: %w", err)
 	}
-	_, envOverridden := overrides["env.default"]
-	if provider, ok := build.GetByID[*envslash.Provider](result, "env.default"); ok && !envOverridden {
-		if err := provider.UseCredentialStore(res.Store()); err != nil {
-			return nil, nil, err
+	for index, connection := range cfg.Connections() {
+		id := "env.default"
+		if index > 0 {
+			id = "env." + connection.Kind
+		}
+		_, envOverridden := overrides[id]
+		if provider, ok := build.GetByID[*envslash.Provider](result, id); ok && !envOverridden {
+			if err := provider.UseCredentialStore(res.Store()); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 	return runner, result, nil
@@ -310,4 +380,52 @@ func joinCommand(cmd []string) string {
 		out += strconv.Quote(part)
 	}
 	return out
+}
+
+// rewriteNodeDependencies changes only named dependency references. Backend
+// configuration, including arbitrary strings and credentials, is never rewritten.
+func rewriteNodeDependencies(node Node, ids map[string]string) {
+	deps, _ := node["deps"].(Node)
+	for name, value := range deps {
+		switch value := value.(type) {
+		case string:
+			if renamed, ok := ids[value]; ok {
+				deps[name] = renamed
+			}
+		case Node:
+			rewriteNodeDependencies(value, ids)
+		case []any:
+			for index, entry := range value {
+				switch entry := entry.(type) {
+				case string:
+					if renamed, ok := ids[entry]; ok {
+						value[index] = renamed
+					}
+				case Node:
+					rewriteNodeDependencies(entry, ids)
+				}
+			}
+		}
+	}
+}
+
+func sharedRecordDB(node Node, path string) {
+	if node["use"] == verifyRecord.Kind {
+		if options, ok := node["config"].(Node); ok {
+			options["dbPath"] = path
+		}
+	}
+	deps, _ := node["deps"].(Node)
+	for _, value := range deps {
+		switch value := value.(type) {
+		case Node:
+			sharedRecordDB(value, path)
+		case []any:
+			for _, entry := range value {
+				if child, ok := entry.(Node); ok {
+					sharedRecordDB(child, path)
+				}
+			}
+		}
+	}
 }

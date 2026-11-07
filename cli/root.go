@@ -20,8 +20,9 @@ import (
 
 // env holds values resolved once in PersistentPreRun and shared by subcommands.
 type env struct {
-	home  string
-	paths config.Paths
+	accessPlatform string
+	home           string
+	paths          config.Paths
 	// homeOverride is --home.
 	homeOverride string
 	// storeOverride forces the in-memory credential store (tests / dry runs).

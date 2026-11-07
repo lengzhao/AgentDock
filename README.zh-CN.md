@@ -91,3 +91,7 @@ Agent 适配优先采用受支持的 ACP 接口，其他接入机制按 Agent �
 ## 许可证
 
 [MIT](LICENSE)
+
+## 微信 / Weixin ClawBot
+
+Go iLink 平台插件及统一登录插件已实现，支持私聊文本；真实账号联通仍需扫码验证。登录、限制和扩展方式见 [微信接入说明](docs/weixin.md)。
