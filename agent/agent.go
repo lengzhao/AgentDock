@@ -116,6 +116,8 @@ func runVersion(ctx context.Context, path string, timeout time.Duration) (string
 	var lastErr error
 	for _, args := range versionArgs {
 		cmd := exec.CommandContext(ctx, path, args...)
+		// Descendants may keep output pipes open after the probe is killed.
+		cmd.WaitDelay = 100 * time.Millisecond
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr

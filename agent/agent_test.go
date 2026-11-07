@@ -108,7 +108,8 @@ func TestDetectLauncherIsUnknownNotReady(t *testing.T) {
 
 func TestDetectTimesOut(t *testing.T) {
 	t.Parallel()
-	path := script(t, `sleep 5`)
+	path := script(t, `sleep 5 &
+wait`)
 	cfg := config.Default()
 	cfg.Agents = []config.Agent{{ID: "slow", Command: []string{path}}}
 	cfg.Runtime.DefaultAgent = "slow"
