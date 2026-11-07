@@ -164,6 +164,13 @@ func (s *Store) migrate(ctx context.Context) error {
 	return nil
 }
 
+// TaskKey builds the idempotency key for one inbound event. It is namespaced by
+// installation so two installs sharing a platform app cannot collide, and includes
+// the platform instance because one event id is only unique inside an app.
+func TaskKey(installation, platform, instance, eventID string) string {
+	return installation + "|" + platform + "|" + instance + "|" + eventID
+}
+
 // ErrDuplicate means the task key was already recorded. Platforms redeliver
 // events, so this is an ordinary outcome, not a failure (MSG-02).
 var ErrDuplicate = errors.New("duplicate task")

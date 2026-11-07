@@ -19,6 +19,7 @@ import (
 	"github.com/lengzhao/AgentDock/internal/config"
 	"github.com/lengzhao/AgentDock/internal/credentials"
 	"github.com/lengzhao/AgentDock/internal/plugin"
+	verifyRecord "github.com/lengzhao/AgentDock/internal/record"
 	"github.com/lengzhao/AgentDock/internal/verify"
 )
 
@@ -118,15 +119,26 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 				"commands":     "commands.default",
 				"sessionStore": "sessionStore.default",
 				"workspace":    "workspace.default",
-				// Order matters: verify records the token only for messages the
-				// owner policy accepts, so a stranger cannot satisfy `verify`.
+				// Order matters: owner decides first, record then stores accepted
+				// messages, and verify only sees what both allowed. A stranger
+				// therefore cannot satisfy `agentdock verify`, and a rejected message
+				// never leaves a task record behind.
 				"inboundPolicy": Node{
 					"use":    verify.Kind,
 					"config": Node{"stateDir": layout.StateDir},
 					"deps": Node{
 						"inner": Node{
-							"use":    plugin.KindPolicyOwner,
-							"config": Node{"path": filepath.Join(layout.StateDir, "access.json")},
+							"use": verifyRecord.Kind,
+							"config": Node{
+								"dbPath":       filepath.Join(layout.StateDir, "state.db"),
+								"installation": cfg.InstallID,
+							},
+							"deps": Node{
+								"inner": Node{
+									"use":    plugin.KindPolicyOwner,
+									"config": Node{"path": filepath.Join(layout.StateDir, "access.json")},
+								},
+							},
 						},
 					},
 				},
