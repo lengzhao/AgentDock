@@ -4,6 +4,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -80,6 +81,7 @@ func newRootCmd() *cobra.Command {
 			}
 			rootEnv.home = abs
 			rootEnv.paths = config.ResolvePaths(abs)
+			configureLogging(rootEnv.verbose)
 			return nil
 		},
 	}
@@ -133,6 +135,16 @@ func newVersionCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// configureLogging sets the process-wide slog level. The service redirects
+// stderr into logs/service.err.log, so text output is the right handler here.
+func configureLogging(verbose bool) {
+	level := slog.LevelInfo
+	if verbose {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 }
 
 func warnf(format string, args ...any) {
