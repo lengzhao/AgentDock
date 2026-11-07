@@ -95,3 +95,11 @@ The project is in its design phase. Issues discussing concrete setup workflows, 
 ## Weixin ClawBot / iLink
 
 A native Go platform plugin and shared authentication plugins support private text conversations. Live account verification still requires QR login. See [Weixin setup and extension guide](docs/weixin.md) for usage and current limitations.
+
+## 定时任务 / Scheduling
+
+支持持久化一次性与 cron 任务、聊天 `/cron` 管理，以及通过 ACP MCP 创建计划。默认上海时区，执行与投递分开记录。详见 [定时任务与 meta 上下文](docs/scheduling.md)。
+
+## Cursor
+
+支持本机 Cursor 原生 ACP；已有安装可用 `agentdock agents add cursor` 添加并保留其他 Agent。详见 [Cursor 接入](docs/cursor.md)。

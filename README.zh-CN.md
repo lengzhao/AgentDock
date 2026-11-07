@@ -95,3 +95,11 @@ Agent 适配优先采用受支持的 ACP 接口，其他接入机制按 Agent �
 ## 微信 / Weixin ClawBot
 
 Go iLink 平台插件及统一登录插件已实现，支持私聊文本；真实账号联通仍需扫码验证。登录、限制和扩展方式见 [微信接入说明](docs/weixin.md)。
+
+## 定时任务 / Scheduling
+
+支持持久化一次性与 cron 任务、聊天 `/cron` 管理，以及通过 ACP MCP 创建计划。默认上海时区，执行与投递分开记录。详见 [定时任务与 meta 上下文](docs/scheduling.md)。
+
+## Cursor
+
+支持本机 Cursor 原生 ACP；已有安装可用 `agentdock agents add cursor` 添加并保留其他 Agent。详见 [Cursor 接入](docs/cursor.md)。

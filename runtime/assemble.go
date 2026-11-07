@@ -111,9 +111,16 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 				"shutdownTimeoutSeconds": 15,
 				"sessionScope":           cfg.Runtime.SessionScope,
 				"maxConcurrentTurns":     cfg.Runtime.MaxConcurrentTurns,
+				"defaultTimezone":        cfg.ScheduleOptions().Timezone,
+				// Every supported built-in plus an explicit allowlist of useful
+				// non-secret metadata. Missing values are omitted by AgentKit.
 				"inject": []any{
 					"sender_id", "sender_name", "sender_email", "mentions",
-					"chat_id", "timestamp",
+					"platform", "chat_id", "thread_id", "timestamp",
+					"task_id", "trace_id", "language",
+					"chat_type", "message_timestamp", "sessionScope",
+					"project", "cwd", "workspace", "session", "session_id",
+					"conversation_id", "agent", "agent_id",
 				},
 			},
 			"deps": Node{
@@ -238,6 +245,7 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 			single := cfg
 			single.Platform = connection
 			single.Platforms = nil
+			single.Scheduling.Disabled = true
 			scoped := layout
 			scoped.StateDir = filepath.Join(layout.StateDir, "platforms", connection.Kind)
 			resolved := secrets.Platforms[connection.Kind]
@@ -277,6 +285,7 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 			node["config"] = Node{"provider": envID, "scopedProviders": initializers}
 		}
 	}
+	attachScheduling(cfg, layout, secrets, graph)
 	for id, node := range overrides {
 		kind, _ := node["use"].(string)
 		if strings.TrimSpace(id) == "" || strings.TrimSpace(kind) == "" {

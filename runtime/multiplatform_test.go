@@ -33,8 +33,8 @@ func TestGraphAddsWeixinWithoutReplacingPrimaryOrSharedRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := graph["runner.default"].(runtime.Node)["deps"].(runtime.Node)
-	if root["platform"] != "platform.multiplex" {
-		t.Fatal("runner does not multiplex platforms")
+	if root["platform"] != "platform.audited" || graph["platform.audited"].(runtime.Node)["deps"].(runtime.Node)["inner"] != "platform.multiplex" {
+		t.Fatal("runner does not observe multiplex delivery")
 	}
 	aggregator := graph["platform.multiplex"].(runtime.Node)
 	if aggregator["use"] != "platform/multiplex" {
@@ -73,7 +73,7 @@ func TestGraphAddsWeixinWithoutReplacingPrimaryOrSharedRuntime(t *testing.T) {
 	if graph["commands.weixin"].(runtime.Node)["deps"].(runtime.Node)["sessionCommands"] != "sessionCommands.default" {
 		t.Fatal("command graph did not share session store")
 	}
-	if !reflect.DeepEqual(root["init"], []any{"env.default", "env.weixin"}) {
+	if !reflect.DeepEqual(root["init"], []any{"env.default", "env.weixin", "schedule.records"}) {
 		t.Fatalf("init: %#v", root["init"])
 	}
 	for _, id := range []string{"runner.weixin", "loop.weixin", "workspace.weixin", "sessionStore.weixin", "sessionCommands.weixin"} {

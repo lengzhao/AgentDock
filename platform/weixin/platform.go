@@ -24,6 +24,9 @@ import (
 
 const Kind = "platform/weixin"
 
+// ErrReplyContextUnavailable means no message can be sent until a new inbound message supplies context.
+var ErrReplyContextUnavailable = errors.New("weixin reply context is unavailable; send a new private message first")
+
 type Config struct {
 	BotID        string `json:"botId"`
 	Token        string `json:"token"`
@@ -234,7 +237,14 @@ func (p *Platform) Receive(ctx context.Context) (agentkit.MessageEvent, error) {
 		p.mu.Unlock()
 		route := agentkit.SessionRouteInput{Platform: "weixin", Instance: p.platformInstance(), DeliveryID: delivery, ChannelID: msg.FromUserID}
 		event := common.InboundFromContent("", route, msg.FromUserID, text, "", nil, nil, nil, nil, nil)
-		event = common.WithMetadata(event, map[string]any{"sender_id": msg.FromUserID, "chat_id": msg.FromUserID, "sessionScope": p.cfg.SessionScope})
+		metadata := map[string]any{
+			"sender_id": msg.FromUserID, "chat_id": msg.FromUserID,
+			"sessionScope": p.cfg.SessionScope, "chat_type": "direct",
+		}
+		if msg.CreateTimeMS > 0 {
+			metadata["message_timestamp"] = time.UnixMilli(msg.CreateTimeMS).UTC().Format(time.RFC3339Nano)
+		}
+		event = common.WithMetadata(event, metadata)
 		if command != "" {
 			if !plan.Handlers {
 				continue
@@ -323,7 +333,7 @@ func (p *Platform) sendText(ctx context.Context, user, text string) error {
 	token := p.tokens[user]
 	p.mu.Unlock()
 	if token == "" {
-		return errors.New("weixin reply context is unavailable; send a new private message first")
+		return ErrReplyContextUnavailable
 	}
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {

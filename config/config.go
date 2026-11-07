@@ -35,6 +35,7 @@ const EnvHome = "AGENTDOCK_HOME"
 
 // Config is the whole user configuration.
 type Config struct {
+	Scheduling Scheduling `yaml:"schedule,omitempty"`
 	// Platforms are additional connections; Platform preserves the primary legacy connection.
 	Platforms []Platform `yaml:"platforms,omitempty"`
 	Version   int        `yaml:"version"`
@@ -43,6 +44,33 @@ type Config struct {
 	Agents    []Agent    `yaml:"agents"`
 	Runtime   Runtime    `yaml:"runtime"`
 	Service   Service    `yaml:"service"`
+}
+
+// Scheduling configures the shared timer service. Disabled is explicit so older
+// installations gain scheduling without needing to rewrite their config first.
+type Scheduling struct {
+	Disabled           bool   `yaml:"disabled,omitempty"`
+	Timezone           string `yaml:"timezone,omitempty"`
+	PollSeconds        int    `yaml:"pollSeconds,omitempty"`
+	MaxJobs            int    `yaml:"maxJobs,omitempty"`
+	MissedGraceSeconds int    `yaml:"missedGraceSeconds,omitempty"`
+}
+
+func (c Config) ScheduleOptions() Scheduling {
+	s := c.Scheduling
+	if s.Timezone == "" {
+		s.Timezone = "Asia/Shanghai"
+	}
+	if s.PollSeconds == 0 {
+		s.PollSeconds = 1
+	}
+	if s.MaxJobs == 0 {
+		s.MaxJobs = 32
+	}
+	if s.MissedGraceSeconds == 0 {
+		s.MissedGraceSeconds = 300
+	}
+	return s
 }
 
 // Platform describes one messaging connection.
@@ -297,6 +325,13 @@ func (c *Config) applyDefaults() {
 // Validate checks structural rules. It deliberately does not reach out to the
 // credential store or the network; doctor does that.
 func (c Config) Validate() error {
+	scheduling := c.ScheduleOptions()
+	if _, err := time.LoadLocation(scheduling.Timezone); err != nil {
+		return errors.New("schedule.timezone must be a valid IANA timezone")
+	}
+	if scheduling.PollSeconds < 1 || scheduling.MaxJobs < 1 || scheduling.MissedGraceSeconds < 1 {
+		return errors.New("schedule pollSeconds, maxJobs and missedGraceSeconds must be positive")
+	}
 	if c.Version != Version {
 		return fmt.Errorf("unsupported config version %d (want %d)", c.Version, Version)
 	}

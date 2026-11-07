@@ -128,3 +128,13 @@ runner, result, err := runtime.BuildWithOverrides(ctx, cfg, layout, resolver,
 ## 多平台并行连接
 
 Config.Platform 保留主连接；Config.Platforms 是附加连接列表。Connections/Connection/UpsertPlatform 是统一访问边界。Paths.ForPlatform 保留主连接状态路径，并给新增平台分配独立状态目录。runtime 使用 AgentKit platform/multiplex；共享 Agent、会话底座和根任务库。setup --platform weixin 会追加连接，且不指定 --agent 时保留已有 Agent 配置。access --platform 和 verify --platform 管理指定连接。
+
+## 定时任务与 [meta]
+
+schedule 包提供固定文件持久表、并发/文件锁、平台/会话/用户授权视图、时区适配、触发审计与执行/投递独立记录。runtime 装配一个共享 cron，通过 turn-scoped ACP session MCP runtime 暴露 schedule 工具；审计 loop 以实际 Dispatch 返回值确认执行成败，审计 platform 处理真实 ACP MessageEnd 及不确定投递。默认配置与验证边界见 [scheduling.md](scheduling.md)。
+
+按用户要求对照 AgentKit 与 agent-harness 扩展 [meta]：全部内置 token 与精确非敏感 metadata 键，有值才注入。运行时真实注入及 fake ACP/MCP 触发均有集成测试。
+
+## Cursor 原生 ACP
+
+Cursor 使用本机 CLI acp 子命令与 cursor_login，不使用 registry 未安装的相对 archive cmd。agents add 只追加 Agent，可显式设默认；不会重新执行平台登录。CLI 与配置保留测试、fake Cursor auth+MCP 定时器端到端测试覆盖接入边界，详见 [cursor.md](cursor.md)。

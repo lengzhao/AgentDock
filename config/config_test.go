@@ -251,3 +251,20 @@ func TestAdditionalPlatformRoundTripAndIsolation(t *testing.T) {
 		t.Fatal("duplicate platform accepted")
 	}
 }
+
+func TestSchedulingDefaultsAndValidation(t *testing.T) {
+	cfg := validConfig()
+	options := cfg.ScheduleOptions()
+	if options.Timezone != "Asia/Shanghai" || options.PollSeconds != 1 || options.MaxJobs != 32 {
+		t.Fatalf("defaults %+v", options)
+	}
+	cfg.Scheduling.Timezone = "not/a-timezone"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid timer timezone accepted")
+	}
+	cfg.Scheduling.Timezone = "Asia/Shanghai"
+	cfg.Scheduling.PollSeconds = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid poll interval accepted")
+	}
+}

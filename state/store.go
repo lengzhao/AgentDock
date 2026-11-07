@@ -27,9 +27,9 @@ const (
 	StatusAccepted Status = "accepted"
 	// StatusRunning means a turn is executing.
 	StatusRunning Status = "running"
-	// StatusCompleted means the turn finished and the result was delivered.
+	// StatusCompleted means the turn finished; delivery is tracked independently.
 	StatusCompleted Status = "completed"
-	// StatusFailed means the turn ended in an error that was reported.
+	// StatusFailed means the turn ended in an error.
 	StatusFailed Status = "failed"
 	// StatusCancelled means the user or the platform stopped the turn.
 	StatusCancelled Status = "cancelled"
@@ -56,6 +56,8 @@ const (
 
 // Task is one accepted inbound message that may produce a turn.
 type Task struct {
+	// Deliveries is populated by task views, independently from execution status.
+	Deliveries []Delivery `json:"deliveries,omitempty"`
 	// Key is the idempotency key: platform + instance + event id.
 	Key string
 	// Installation scopes the record to one AgentDock install.
@@ -366,4 +368,28 @@ func scanTask(row rowScanner) (Task, error) {
 	t.CreatedAt = time.Unix(created, 0).UTC()
 	t.UpdatedAt = time.Unix(updated, 0).UTC()
 	return t, nil
+}
+
+// Deliveries returns all delivery attempts for one task, including terminal
+// failures and successes; PendingDeliveries is only for crash reconciliation.
+func (s *Store) Deliveries(ctx context.Context, taskKey string) ([]Delivery, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, task_key, status, attempts, detail, created_at, updated_at FROM deliveries WHERE task_key = ? ORDER BY id`, taskKey)
+	if err != nil {
+		return nil, fmt.Errorf("list task deliveries: %w", err)
+	}
+	defer rows.Close()
+	out := []Delivery{}
+	for rows.Next() {
+		var d Delivery
+		var status string
+		var created, updated int64
+		if err := rows.Scan(&d.ID, &d.TaskKey, &status, &d.Attempts, &d.Detail, &created, &updated); err != nil {
+			return nil, err
+		}
+		d.Status = DeliveryStatus(status)
+		d.CreatedAt = time.Unix(created, 0).UTC()
+		d.UpdatedAt = time.Unix(updated, 0).UTC()
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }

@@ -203,3 +203,27 @@ func TestReopenKeepsData(t *testing.T) {
 		t.Fatalf("task lost across reopen: %v", err)
 	}
 }
+
+func TestDeliveriesAreScopedToTaskAndKeepTerminalStatus(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, key := range []string{"timer-a", "timer-b"} {
+		if err := store.Accept(ctx, Task{Key: key, Installation: "install", Platform: "weixin", Status: StatusAccepted}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.RecordDelivery(ctx, "timer-a", DeliverySent, "done"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RecordDelivery(ctx, "timer-b", DeliveryFailed, "failed"); err != nil {
+		t.Fatal(err)
+	}
+	deliveries, err := store.Deliveries(ctx, "timer-a")
+	if err != nil || len(deliveries) != 1 || deliveries[0].Status != DeliverySent {
+		t.Fatalf("deliveries %+v %v", deliveries, err)
+	}
+}

@@ -48,6 +48,7 @@ real message.`,
 			return nil
 		},
 	}
+	cmd.AddCommand(newAgentsAddCmd())
 	cmd.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "per-agent detection timeout")
 	return cmd
 }

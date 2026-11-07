@@ -51,7 +51,7 @@ holds references.`,
 		},
 	}
 	f := cmd.Flags()
-	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude-acp,codex-acp")
+	f.StringSliceVar(&flags.agentIDs, "agent", nil, "agent adapter ids to enable (repeatable), e.g. claude-acp,codex-acp,cursor")
 	f.StringVar(&flags.platformKind, "platform", "", "platform: lark, feishu, weixin (default: existing platform or lark)")
 	f.StringVar(&flags.authPlugin, "platform-auth", "", "registered platform authentication plugin kind")
 	f.StringVar(&flags.appID, "app-id", "", "existing platform app id (skips catalog selection for the platform)")
@@ -232,6 +232,8 @@ func loginHint(id string) string {
 		return "claude /login (Claude Code CLI)"
 	case "codex-acp":
 		return "codex login (Codex CLI)"
+	case "cursor", "cursor-acp":
+		return "agent login (Cursor CLI)"
 	case "kimi":
 		return "kimi login"
 	case "opencode":
@@ -251,6 +253,9 @@ var builtinAgents = map[string][]string{
 }
 
 func resolveAgent(index catalog.Index, id string) (config.Agent, error) {
+	if id == "cursor" || id == "cursor-acp" {
+		return cursorPreset(), nil
+	}
 	if entry, ok := index.Lookup(id); ok {
 		argv, kind, err := entry.Command()
 		if err != nil {

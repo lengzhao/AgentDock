@@ -30,8 +30,12 @@ a cancelled turn, or an unknown send outcome is visible instead of guessed.`,
 			if err != nil {
 				return err
 			}
-			if jsonOut {
-				return writeJSON(cmd, tasks)
+			for i := range tasks {
+				deliveries, err := store.Deliveries(cmd.Context(), tasks[i].Key)
+				if err != nil {
+					return err
+				}
+				tasks[i].Deliveries = deliveries
 			}
 			out := cmd.OutOrStdout()
 			if len(tasks) == 0 {
@@ -42,6 +46,9 @@ a cancelled turn, or an unknown send outcome is visible instead of guessed.`,
 			for _, t := range tasks {
 				fmt.Fprintf(out, "%-10s %-12s %-22s %s\n", t.Status, t.Platform,
 					t.UpdatedAt.Local().Format("2006-01-02 15:04:05"), t.Key)
+				for _, delivery := range t.Deliveries {
+					fmt.Fprintf(out, "           delivery: %s (attempts=%d) %s\n", delivery.Status, delivery.Attempts, delivery.Detail)
+				}
 				if t.Detail != "" {
 					fmt.Fprintf(out, "           %s\n", t.Detail)
 				}
