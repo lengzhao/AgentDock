@@ -179,13 +179,18 @@ func Graph(cfg config.Config, layout Layout, secrets Secrets) (map[string]any, s
 
 // Build constructs the runner from cfg, resolving secrets through res.
 func Build(ctx context.Context, cfg config.Config, layout Layout, res *credentials.Resolver) (agentkit.Runner, *build.Result, error) {
+	// A missing credential is the most common first-run failure, so the message
+	// names the reference and the command that fixes it instead of only the
+	// backend error.
 	appID, err := res.Resolve(ctx, cfg.Platform.AppIDRef)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve platform app id: %w", err)
+		return nil, nil, fmt.Errorf("platform app id (%s): %w\nrun `agentdock doctor` to check the credential store, or `agentdock setup --app-id <id>` to store it again",
+			cfg.Platform.AppIDRef, err)
 	}
 	appSecret, err := res.Resolve(ctx, cfg.Platform.AppSecretRef)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve platform app secret: %w", err)
+		return nil, nil, fmt.Errorf("platform app secret (%s): %w\nrun `agentdock doctor` to check the credential store, or `agentdock setup --app-id <id>` to store it again",
+			cfg.Platform.AppSecretRef, err)
 	}
 	graph, rootID, err := Graph(cfg, layout, Secrets{AppID: appID, AppSecret: appSecret})
 	if err != nil {

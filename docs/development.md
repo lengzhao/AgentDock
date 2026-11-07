@@ -44,7 +44,7 @@ bin/agentdock service install
 | 所有者绑定 | `internal/access` | 实现 AgentKit `cap/ingress.Policy`；未绑定期间一律拒绝，绑定靠一次性 challenge + 有效期 + 单次使用 |
 | 端到端校验 | `internal/verify` | ingress 策略装饰器：只有被 owner 策略接受的入站消息里的 `AGENTDOCK-…` token 才会写 marker，连接成功但没收到消息不会误判为通过 |
 | Agent 检测 | `internal/agent` | 解析可执行文件 + 版本探测；区分 missing / broken / ready / unknown，**不声称登录有效** |
-| 运行记录 | `internal/state` | SQLite（纯 Go `modernc.org/sqlite`）：任务状态、投递状态、启动时把非终态标为 interrupted、30 天清理 |
+| 运行记录 | `internal/state` | SQLite（纯 Go `modernc.org/sqlite`）：任务状态、投递状态、启动时把非终态标为 interrupted、30 天清理。**尚未接入平台事件**，见 §3 |
 | 单实例 | `internal/lock` | flock；进程崩溃由内核释放，不留脏锁 |
 | 诊断 | `internal/doctor` | 分层检查 + 退出码 0/2/1 + `--json` |
 
@@ -59,6 +59,8 @@ bin/agentdock service install
 | 工具审批卡片闭环 | 未实现。`autoApprove` 默认为 false，审批相关需求仍是目标 | ACL-02 |
 | 会话恢复 / 取消终态 | 依赖 ACP 能力；未做能力矩阵降级 | AGT-02、AGT-03 |
 | 平台投递幂等与 unknown 处理 | 数据模型就绪（`deliveries`），但未接入真实发送路径 | MSG-04 |
+| 任务/投递记录写入 | `internal/state` 的表结构与状态机已测通，但还没有调用点：AgentKit 的 ACP agent 不提供 turn 回调，要接终态需要平台侧钩子。当前 `agentdock tasks` 只是空表 | MSG-02、MSG-04 |
+| 事件去重 | 依赖 AgentKit 平台自身的 `MessageDedup`（按 message id + TTL）；本仓库的持久化去重键尚未接线 | MSG-02 |
 | 群聊、线程隔离策略 | 依赖 AgentKit 平台配置项，已透传但未验证 | MSG-01 |
 | 打包发行 | 无 CI、无签名/公证、无安装包 | PKG-01 |
 | 图形化配置 | 无 | UX-01 |
