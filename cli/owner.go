@@ -29,7 +29,7 @@ func autoBindApplicationOwner(ctx context.Context, out io.Writer, cfg config.Con
 	return errors.Join(failures...)
 }
 func bindPlatformOwner(ctx context.Context, out io.Writer, cfg config.Config, connection config.Platform, resolver *credentials.Resolver) error {
-	paths := rootEnv.paths.ForPlatform(connection.Kind, cfg.Platform.Kind)
+	paths := rootEnv.paths.ForPlatform(connection.Kind, cfg.PrimaryKind)
 	store := access.NewStore(filepath.Join(paths.StateDir, "access.json"))
 	owner, err := store.Owner()
 	if err != nil {

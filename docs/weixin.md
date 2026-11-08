@@ -33,7 +33,7 @@ agentdock status
 
 ## 后台服务与多平台
 
-一套后台服务通过 AgentKit multiplex 同时处理配置中的所有平台，复用 Agent/会话底座，按来源路由回复。旧 platform 字段仍是主连接，新的 platforms 列表保存附加连接；setup 按 kind 追加/更新，不替换其他连接。主连接的原有状态目录不迁移；附加连接的 owner、校验 marker 和微信游标独立，任务记录共用原 state.db，并通过平台和实例区分键。
+一套后台服务通过 AgentKit multiplex 同时处理配置中的所有平台，复用 Agent/会话底座，按来源路由回复。全部连接写在 `platforms` 中，由 `primaryKind` 指定主连接；setup 按 kind 追加/更新，不替换其他连接。主连接状态目录不迁移；附加连接的 owner、校验 marker 和微信游标独立，任务记录共用原 state.db，并通过平台和实例区分键。
 
 管理或验证微信连接：
 

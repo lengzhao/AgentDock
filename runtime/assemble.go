@@ -65,9 +65,10 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 	if err := cfg.Validate(); err != nil {
 		return nil, "", err
 	}
-	platformKind := "platform/" + cfg.Platform.Kind
+	primary := cfg.Primary()
+	platformKind := "platform/" + primary.Kind
 	domain := "https://open.larksuite.com"
-	if cfg.Platform.Kind == "feishu" {
+	if primary.Kind == "feishu" {
 		platformKind = "platform/feishu"
 		domain = "https://open.feishu.cn"
 	}
@@ -137,9 +138,9 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 				"appId":              secrets.AppID,
 				"appSecret":          secrets.AppSecret,
 				"domain":             domain,
-				"allowFrom":          cfg.Platform.AllowFrom,
-				"allowChat":          cfg.Platform.AllowChat,
-				"groupReplyAll":      cfg.Platform.GroupReplyAll,
+				"allowFrom":          primary.AllowFrom,
+				"allowChat":          primary.AllowChat,
+				"groupReplyAll":      primary.GroupReplyAll,
 				"dmThreadMode":       true,
 				"runnerSessionScope": cfg.Runtime.SessionScope,
 				"showToolProgress":   true,
@@ -216,11 +217,11 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 		"telemetry.default": Node{"use": "telemetry/none"},
 		"telemetry.toolkit": Node{"use": "telemetry/toolkit"},
 	}
-	if cfg.Platform.Kind == "weixin" {
+	if primary.Kind == "weixin" {
 		graph["platform.main"].(Node)["config"] = Node{
-			"botId": secrets.AppID, "token": secrets.AppSecret, "baseUrl": cfg.Platform.Settings["baseUrl"],
+			"botId": secrets.AppID, "token": secrets.AppSecret, "baseUrl": primary.Settings["baseUrl"],
 			"cursorPath": filepath.Join(layout.StateDir, "weixin-cursor.json"),
-			"allowFrom":  cfg.Platform.AllowFrom, "sessionScope": cfg.Runtime.SessionScope,
+			"allowFrom":  primary.AllowFrom, "sessionScope": cfg.Runtime.SessionScope,
 		}
 		deps := graph["platform.main"].(Node)["deps"].(Node)
 		delete(deps, "workspace")
@@ -229,7 +230,7 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 	platformDeps := graph["platform.main"].(Node)["deps"].(Node)
 	graph["env.default"] = Node{
 		"use":    envslash.Kind,
-		"config": Node{"path": filepath.Join(layout.Home, "config.yaml"), "accessPath": filepath.Join(layout.StateDir, "access.json"), "platform": cfg.Platform.Kind},
+		"config": Node{"path": filepath.Join(layout.Home, "config.yaml"), "accessPath": filepath.Join(layout.StateDir, "access.json"), "platform": primary.Kind},
 		"deps": Node{
 			"store": Node{"use": plugin.KindCredentialsKeyring, "config": Node{"servicePrefix": "io.agentdock"}},
 			"inner": platformDeps["inboundPolicy"],
@@ -238,13 +239,11 @@ func GraphWithOverrides(cfg config.Config, layout Layout, secrets Secrets, overr
 	platformDeps["inboundPolicy"] = "env.default"
 	graph["runner.default"].(Node)["deps"].(Node)["init"] = []any{"env.default"}
 
-	if len(cfg.Platforms) > 0 {
+	if extras := cfg.AdditionalPlatforms(); len(extras) > 0 {
 		platformIDs := []any{"platform.main"}
 		initializers := []any{"env.default"}
-		for _, connection := range cfg.Platforms {
-			single := cfg
-			single.Platform = connection
-			single.Platforms = nil
+		for _, connection := range extras {
+			single := cfg.AsSinglePlatform(connection.Kind)
 			single.Scheduling.Disabled = true
 			scoped := layout
 			scoped.StateDir = filepath.Join(layout.StateDir, "platforms", connection.Kind)
@@ -318,7 +317,7 @@ func BuildWithOverrides(ctx context.Context, cfg config.Config, layout Layout, r
 		}
 		resolvedPlatforms[connection.Kind] = Secrets{AppID: values["id"], AppSecret: values["secret"]}
 	}
-	resolved := resolvedPlatforms[cfg.Platform.Kind]
+	resolved := resolvedPlatforms[cfg.PrimaryKind]
 	resolved.Platforms = resolvedPlatforms
 	agentEnv, err := ResolveAgentEnvironment(ctx, cfg, res)
 	if err != nil {

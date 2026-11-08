@@ -10,8 +10,12 @@ import (
 
 func validConfig() Config {
 	cfg := Default()
-	cfg.Platform.AppIDRef = "keyring://io.agentdock.platform/app-id"
-	cfg.Platform.AppSecretRef = "keyring://io.agentdock.platform/app-secret"
+	cfg.Platforms = []Platform{{
+		Kind:         "lark",
+		AppIDRef:     "keyring://io.agentdock.platform/app-id",
+		AppSecretRef: "keyring://io.agentdock.platform/app-secret",
+	}}
+	cfg.PrimaryKind = "lark"
 	cfg.Agents = []Agent{{ID: "claude", Command: []string{"npx", "-y", "pkg@1.0.0"}}}
 	cfg.Runtime.DefaultAgent = "claude"
 	return cfg
@@ -52,9 +56,9 @@ func TestValidateRejects(t *testing.T) {
 		want   string
 	}{
 		{"bad version", func(c *Config) { c.Version = 9 }, "unsupported config version"},
-		{"bad platform", func(c *Config) { c.Platform.Kind = "slack" }, "platform.kind"},
-		{"literal secret", func(c *Config) { c.Platform.AppSecretRef = "abc123" }, "not a reference"},
-		{"env scheme in appId", func(c *Config) { c.Platform.AppIDRef = "file://x/y" }, "not supported"},
+		{"bad platform", func(c *Config) { c.Platforms[0].Kind = "slack"; c.PrimaryKind = "slack" }, "platform.kind"},
+		{"literal secret", func(c *Config) { c.Platforms[0].AppSecretRef = "abc123" }, "not a reference"},
+		{"env scheme in appId", func(c *Config) { c.Platforms[0].AppIDRef = "file://x/y" }, "not supported"},
 		{"no agents", func(c *Config) { c.Agents = nil }, "at least one agent"},
 		{"duplicate agent", func(c *Config) {
 			c.Agents = append(c.Agents, Agent{ID: "claude", Command: []string{"x"}})
@@ -101,8 +105,8 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if loaded.Platform.AppSecretRef != cfg.Platform.AppSecretRef {
-		t.Fatalf("secret ref = %q, want %q", loaded.Platform.AppSecretRef, cfg.Platform.AppSecretRef)
+	if loaded.Primary().AppSecretRef != cfg.Primary().AppSecretRef {
+		t.Fatalf("secret ref = %q, want %q", loaded.Primary().AppSecretRef, cfg.Primary().AppSecretRef)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -117,13 +121,14 @@ func TestLoadUnknownFieldFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	body := `version: 1
+	body := `version: 2
 installId: x
-platform:
-  kind: lark
-  appIdRef: keyring://s/a
-  appSecretRef: keyring://s/b
-  unexpected: true
+primaryKind: lark
+platforms:
+  - kind: lark
+    appIdRef: keyring://s/a
+    appSecretRef: keyring://s/b
+    unexpected: true
 agents:
   - id: a
     command: ["x"]
@@ -202,17 +207,20 @@ func writeAtomicToDir(path string, data []byte) (int, error) {
 func TestWeixinAndExternalAuthCredentialReferences(t *testing.T) {
 	for _, kind := range []string{"weixin", "custom"} {
 		cfg := validConfig()
-		cfg.Platform.Kind = kind
-		cfg.Platform.Credentials = map[string]string{"id": "env:BOT_ID", "secret": "env:BOT_TOKEN", "owner": "env:OWNER"}
-		cfg.Platform.AppIDRef = ""
-		cfg.Platform.AppSecretRef = ""
+		cfg.PrimaryKind = kind
+		cfg.Platforms = []Platform{{
+			Kind: kind,
+			Credentials: map[string]string{
+				"id": "env:BOT_ID", "secret": "env:BOT_TOKEN", "owner": "env:OWNER",
+			},
+		}}
 		if kind == "custom" {
-			cfg.Platform.AuthPlugin = "example/auth"
+			cfg.Platforms[0].AuthPlugin = "example/auth"
 		}
 		if err := cfg.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		if cfg.Platform.References()["secret"] != "env:BOT_TOKEN" {
+		if cfg.Primary().References()["secret"] != "env:BOT_TOKEN" {
 			t.Fatal("missing reference")
 		}
 	}
@@ -222,7 +230,7 @@ func TestAdditionalPlatformRoundTripAndIsolation(t *testing.T) {
 	cfg := validConfig()
 	extra := Platform{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN"}}
 	cfg.UpsertPlatform(extra)
-	if len(cfg.Connections()) != 2 || cfg.Platform.Kind != "lark" {
+	if len(cfg.Connections()) != 2 || cfg.PrimaryKind != "lark" {
 		t.Fatal("primary platform replaced")
 	}
 	if _, ok := cfg.Connection("weixin"); !ok {

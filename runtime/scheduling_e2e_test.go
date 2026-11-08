@@ -205,8 +205,8 @@ func TestScheduledACPToolFireAndExecutionAudit(t *testing.T) {
 				t.Fatal(err)
 			}
 			resolver := credentials.NewResolver(credentials.NewMemoryStore(), func(string) (string, bool) { return "value", true })
-			cfg.Platform.AppIDRef = "env:APP_ID"
-			cfg.Platform.AppSecretRef = "env:APP_SECRET"
+			cfg.Platforms[0].AppIDRef = "env:APP_ID"
+			cfg.Platforms[0].AppSecretRef = "env:APP_SECRET"
 			runner, result, err := runtime.BuildWithOverrides(ctx, cfg, layout, resolver, map[string]runtime.Node{"platform.main": {"use": kind}})
 			if err != nil {
 				t.Fatal(err)

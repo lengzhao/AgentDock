@@ -148,7 +148,7 @@ func accessPaths() config.Paths {
 	paths := rootEnv.paths
 	if rootEnv.accessPlatform != "" {
 		if cfg, err := rootEnv.loadConfig(); err == nil {
-			paths = paths.ForPlatform(rootEnv.accessPlatform, cfg.Platform.Kind)
+			paths = paths.ForPlatform(rootEnv.accessPlatform, cfg.PrimaryKind)
 		}
 	}
 	return paths

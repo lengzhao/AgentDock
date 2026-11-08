@@ -30,7 +30,7 @@ func newStatusCmd() *cobra.Command {
 					fmt.Fprintf(out, "agent: %s\n", line)
 				}
 			case os.IsNotExist(err) || err == config.ErrNotConfigured:
-				fmt.Fprintf(out, "config: not configured (run `agentdock setup`)\n")
+				fmt.Fprintf(out, "config: not configured (run `agentdock onboard` or `agentdock setup`)\n")
 			default:
 				fmt.Fprintf(out, "config: invalid: %v\n", err)
 			}

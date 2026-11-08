@@ -115,6 +115,6 @@ Weixin 实现直接使用 iLink HTTP API，通过 platform/weixin 接入同一�
 
 ## 11. 同时连接多个平台
 
-保留 platform 主连接字段及其原状态目录，附加连接保存到 platforms 列表。setup --platform 按 kind 追加或更新，未指定 --agent 时保留 Agent 配置。所有连接共享 Agent、loop、会话底座与任务数据库；附加连接的 owner、验证 marker、游标使用独立子目录。主连接仍可读取旧凭据引用，不因新增平台而迁移。
+所有 IM 连接保存在 `platforms` 列表；`primaryKind` 标记主连接，其状态目录沿用原路径，其余平台落在 `state/platforms/<kind>/`。setup --platform 按 kind 追加或更新，未指定 --agent 时保留 Agent 配置。所有连接共享 Agent、loop、会话底座与任务数据库；附加连接的 owner、验证 marker、游标使用独立子目录。
 
 运行装配通过 platform/multiplex 聚合，回复沿原连接路由。access 与 verify 可用 --platform 选择目标；doctor/status 遍历全部连接。setup 后需要重启已安装服务以加载新增连接。

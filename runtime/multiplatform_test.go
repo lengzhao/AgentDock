@@ -21,7 +21,13 @@ import (
 
 func withAdditionalWeixin() config.Config {
 	cfg := testConfig()
-	cfg.Platforms = []config.Platform{{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN", "owner": "env:WX_OWNER"}, Settings: map[string]string{"baseUrl": "https://ilinkai.weixin.qq.com"}}}
+	cfg.Platforms = append(cfg.Platforms, config.Platform{
+		Kind: "weixin",
+		Credentials: map[string]string{
+			"id": "env:WX_ID", "secret": "env:WX_TOKEN", "owner": "env:WX_OWNER",
+		},
+		Settings: map[string]string{"baseUrl": "https://ilinkai.weixin.qq.com"},
+	})
 	return cfg
 }
 
@@ -187,8 +193,8 @@ func TestBuildRejectsMissingAdditionalCredentials(t *testing.T) {
 	cfg := withAdditionalWeixin()
 	resolver := credentials.NewResolver(credentials.NewMemoryStore(), func(string) (string, bool) { return "", false })
 	// Resolve primary through environment so the extra credential is the failure.
-	cfg.Platform.AppIDRef = "env:PRIMARY_ID"
-	cfg.Platform.AppSecretRef = "env:PRIMARY_TOKEN"
+	cfg.Platforms[0].AppIDRef = "env:PRIMARY_ID"
+	cfg.Platforms[0].AppSecretRef = "env:PRIMARY_TOKEN"
 	resolver = credentials.NewResolver(credentials.NewMemoryStore(), func(name string) (string, bool) {
 		if name == "PRIMARY_ID" || name == "PRIMARY_TOKEN" {
 			return "primary", true
