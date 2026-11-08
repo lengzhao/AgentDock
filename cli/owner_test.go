@@ -101,7 +101,7 @@ func TestAutoBindApplicationOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			cfg := config.Default()
-			cfg.Platform.AppIDRef, cfg.Platform.AppSecretRef = "keyring://platform/app-id", "keyring://platform/app-secret"
+			cfg.Platforms[0].AppIDRef, cfg.Platforms[0].AppSecretRef = "keyring://platform/app-id", "keyring://platform/app-secret"
 			err := autoBindApplicationOwner(context.Background(), io.Discard, cfg, credentials.NewResolver(creds, nil))
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("error = %v", err)

@@ -16,7 +16,7 @@ func runVerify(ctx context.Context, out io.Writer, paths config.Paths, cfg confi
 	if !ok {
 		return fmt.Errorf("platform %q is not configured", platformKind)
 	}
-	platPaths := paths.ForPlatform(connection.Kind, cfg.Platform.Kind)
+	platPaths := paths.ForPlatform(connection.Kind, cfg.PrimaryKind)
 	nonce, err := newNonce()
 	if err != nil {
 		return err

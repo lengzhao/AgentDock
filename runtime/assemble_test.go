@@ -13,9 +13,13 @@ func testConfig() config.Config {
 	cfg := config.Default()
 	// Services are bare names; the keyring store adds the install prefix, so the
 	// reference stays stable if the prefix ever changes.
-	cfg.Platform.AppIDRef = "keyring://platform/app-id"
-	cfg.Platform.AppSecretRef = "keyring://platform/app-secret"
-	cfg.Platform.AllowFrom = "ou_owner"
+	cfg.PrimaryKind = "lark"
+	cfg.Platforms = []config.Platform{{
+		Kind:         "lark",
+		AppIDRef:     "keyring://platform/app-id",
+		AppSecretRef: "keyring://platform/app-secret",
+		AllowFrom:    "ou_owner",
+	}}
 	cfg.Agents = []config.Agent{
 		{ID: "claude", Command: []string{"npx", "-y", "pkg@1.0.0"}, Cwd: "work"},
 		{ID: "codex", Command: []string{"npx", "-y", "pkg2@2.0.0"}, Cwd: "work"},
@@ -81,7 +85,8 @@ func TestGraphWiresUnifiedEnvProvider(t *testing.T) {
 func TestGraphUsesFeishuDomainForFeishu(t *testing.T) {
 	t.Parallel()
 	cfg := testConfig()
-	cfg.Platform.Kind = "feishu"
+	cfg.Platforms[0].Kind = "feishu"
+	cfg.PrimaryKind = "feishu"
 	graph, _, err := runtime.Graph(cfg, runtime.Layout{Home: "/tmp/ad", InstanceDir: "/tmp/ad/i", StateDir: "/tmp/ad/i/state"},
 		runtime.Secrets{AppID: "a", AppSecret: "b"})
 	if err != nil {
@@ -135,11 +140,14 @@ func TestBuildAssemblesRunner(t *testing.T) {
 
 func TestWeixinGraphAndRunnerAssembly(t *testing.T) {
 	cfg := testConfig()
-	cfg.Platform.Kind = "weixin"
-	cfg.Platform.AppIDRef = ""
-	cfg.Platform.AppSecretRef = ""
-	cfg.Platform.Credentials = map[string]string{"id": "env:WEIXIN_ID", "secret": "env:WEIXIN_TOKEN", "owner": "env:WEIXIN_OWNER"}
-	cfg.Platform.Settings = map[string]string{"baseUrl": "https://ilinkai.weixin.qq.com"}
+	cfg.PrimaryKind = "weixin"
+	cfg.Platforms = []config.Platform{{
+		Kind: "weixin",
+		Credentials: map[string]string{
+			"id": "env:WEIXIN_ID", "secret": "env:WEIXIN_TOKEN", "owner": "env:WEIXIN_OWNER",
+		},
+		Settings: map[string]string{"baseUrl": "https://ilinkai.weixin.qq.com"},
+	}}
 	layout := runtime.Layout{Home: t.TempDir(), InstanceDir: t.TempDir(), StateDir: t.TempDir()}
 	graph, _, err := runtime.Graph(cfg, layout, runtime.Secrets{AppID: "bot", AppSecret: "token"})
 	if err != nil {

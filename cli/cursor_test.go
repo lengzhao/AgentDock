@@ -28,9 +28,11 @@ func TestAgentsAddCursorPreservesOtherAgentsAndPlatforms(t *testing.T) {
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}
 	t.Cleanup(func() { rootEnv = previous })
 	cfg := config.Default()
-	cfg.Platform.AppIDRef = "env:APP_ID"
-	cfg.Platform.AppSecretRef = "env:APP_SECRET"
-	cfg.Platforms = []config.Platform{{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN"}}}
+	cfg.PrimaryKind = "lark"
+	cfg.Platforms = []config.Platform{
+		{Kind: "lark", AppIDRef: "env:APP_ID", AppSecretRef: "env:APP_SECRET"},
+		{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN"}},
+	}
 	cfg.Agents = []config.Agent{{ID: "claude-acp", Command: []string{"npx", "claude"}, Env: map[string]string{"PATH": "keep-me"}}}
 	cfg.Runtime.DefaultAgent = "claude-acp"
 	if err := config.Save(rootEnv.paths.ConfigFile, cfg); err != nil {
@@ -45,7 +47,7 @@ func TestAgentsAddCursorPreservesOtherAgentsAndPlatforms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(actual.Agents) != 2 || actual.Runtime.DefaultAgent != "claude-acp" || actual.Agents[0].Env["PATH"] != "keep-me" || !reflect.DeepEqual(actual.Platforms, cfg.Platforms) || !reflect.DeepEqual(actual.Platform, cfg.Platform) {
+	if len(actual.Agents) != 2 || actual.Runtime.DefaultAgent != "claude-acp" || actual.Agents[0].Env["PATH"] != "keep-me" || !reflect.DeepEqual(actual.Platforms, cfg.Platforms) || actual.PrimaryKind != cfg.PrimaryKind {
 		t.Fatal("adding Cursor replaced existing configuration")
 	}
 	cmd = newAgentsCmd()
@@ -74,8 +76,8 @@ func TestAgentsAddPreservesConcurrentConfigUpdate(t *testing.T) {
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}
 	t.Cleanup(func() { rootEnv = previous })
 	cfg := config.Default()
-	cfg.Platform.AppIDRef = "env:ID"
-	cfg.Platform.AppSecretRef = "env:SECRET"
+	cfg.Platforms[0].AppIDRef = "env:ID"
+	cfg.Platforms[0].AppSecretRef = "env:SECRET"
 	cfg.Agents = []config.Agent{{ID: "claude-acp", Command: []string{"npx"}}}
 	cfg.Runtime.DefaultAgent = "claude-acp"
 	if err := config.Save(rootEnv.paths.ConfigFile, cfg); err != nil {
@@ -125,8 +127,8 @@ func TestExistingCursorDefaultDoesNotDependOnCurrentPath(t *testing.T) {
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}
 	t.Cleanup(func() { rootEnv = previous })
 	cfg := config.Default()
-	cfg.Platform.AppIDRef = "env:ID"
-	cfg.Platform.AppSecretRef = "env:SECRET"
+	cfg.Platforms[0].AppIDRef = "env:ID"
+	cfg.Platforms[0].AppSecretRef = "env:SECRET"
 	existing := config.Agent{ID: "cursor", Command: []string{path, "acp", "--custom"}, Env: map[string]string{"PATH": "preserve"}, AuthMethod: "cursor_login", Cwd: "custom-work"}
 	cfg.Agents = []config.Agent{{ID: "claude-acp", Command: []string{"npx"}}, existing}
 	cfg.Runtime.DefaultAgent = "claude-acp"

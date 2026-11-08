@@ -71,8 +71,8 @@ func fixture(t *testing.T) (*Provider, *credentials.MemoryStore, context.Context
 	home := t.TempDir()
 	paths := config.ResolvePaths(home)
 	cfg := config.Default()
-	cfg.Platform.AppIDRef = "keyring://platform/app-id"
-	cfg.Platform.AppSecretRef = "keyring://platform/app-secret"
+	cfg.Platforms[0].AppIDRef = "keyring://platform/app-id"
+	cfg.Platforms[0].AppSecretRef = "keyring://platform/app-secret"
 	cfg.Agents = []config.Agent{{ID: "claude-acp", Command: []string{"npx"}}, {ID: "codex-acp", Command: []string{"npx"}}}
 	cfg.Runtime.DefaultAgent = "claude-acp"
 	if err := config.Save(paths.ConfigFile, cfg); err != nil {

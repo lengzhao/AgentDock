@@ -65,8 +65,8 @@ func TestBuildWithAlternateTelemetry(t *testing.T) {
 
 func TestExplicitEnvStoreDoesNotRequireResolverStore(t *testing.T) {
 	cfg := testConfig()
-	cfg.Platform.AppIDRef = "env:APP_ID"
-	cfg.Platform.AppSecretRef = "env:APP_SECRET"
+	cfg.Platforms[0].AppIDRef = "env:APP_ID"
+	cfg.Platforms[0].AppSecretRef = "env:APP_SECRET"
 	layout := runtime.Layout{Home: t.TempDir(), InstanceDir: t.TempDir(), StateDir: t.TempDir()}
 	graph, _, err := runtime.Graph(cfg, layout, runtime.Secrets{})
 	if err != nil {

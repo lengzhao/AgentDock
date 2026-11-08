@@ -127,7 +127,7 @@ func runSetup(cmd *cobra.Command, flags *setupFlags) error {
 	fmt.Fprintf(out, "  agentdock run                 # foreground, verify the connection\n")
 	target := flags.platformKind
 	if target == "" {
-		target = cfg.Platform.Kind
+		target = cfg.PrimaryKind
 	}
 	fmt.Fprintf(out, "  agentdock verify --platform %s  # verify the selected platform\n", target)
 	fmt.Fprintf(out, "  agentdock service install     # run in the background\n")
@@ -210,7 +210,7 @@ func stepAgents(ctx context.Context, out io.Writer, cfg *config.Config, flags *s
 func stepPlatform(ctx context.Context, out io.Writer, cfg *config.Config, flags *setupFlags, store credentials.Store, state *setup.State) error {
 	kind := flags.platformKind
 	if kind == "" {
-		kind = cfg.Platform.Kind
+		kind = cfg.PrimaryKind
 	}
 	if kind == "" {
 		kind = "lark"

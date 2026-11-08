@@ -194,8 +194,8 @@ func Run(ctx context.Context, opt Options) Report {
 			Detail: "no successful test message recorded; run `agentdock verify`"})
 	}
 	if opt.Config != nil {
-		for _, connection := range opt.Config.Platforms {
-			paths := opt.Paths.ForPlatform(connection.Kind, opt.Config.Platform.Kind)
+		for _, connection := range opt.Config.AdditionalPlatforms() {
+			paths := opt.Paths.ForPlatform(connection.Kind, opt.Config.PrimaryKind)
 			check := Check{Name: "end-to-end/" + connection.Kind, Level: LevelSkip, Detail: "not verified; run agentdock verify --platform " + connection.Kind}
 			if ts, ok := loadEndToEnd(paths); ok {
 				check.Level = LevelOK

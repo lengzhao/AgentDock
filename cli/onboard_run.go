@@ -104,7 +104,7 @@ func runOnboard(ctx context.Context, out io.Writer, opts onboardOpts) error {
 	// --- platform ---
 	if !state.Done(setup.StepPlatform) {
 		if opts.useTUI {
-			kind, err := onboardPickPlatform(cfg.Platform.Kind)
+			kind, err := onboardPickPlatform(cfg.PrimaryKind)
 			if err != nil {
 				return err
 			}
@@ -148,7 +148,7 @@ func runOnboard(ctx context.Context, out io.Writer, opts onboardOpts) error {
 		if !skipVerify {
 			kind := opts.flags.platformKind
 			if kind == "" {
-				kind = cfg.Platform.Kind
+				kind = cfg.PrimaryKind
 			}
 			if err := runVerify(ctx, out, paths, cfg, kind, opts.verifyTimeout); err != nil {
 				return err

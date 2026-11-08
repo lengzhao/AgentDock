@@ -30,7 +30,7 @@ the bot. A WebSocket that connects but never delivers a message is not a pass
 			}
 			kind := selectedPlatform
 			if kind == "" {
-				kind = cfg.Platform.Kind
+				kind = cfg.PrimaryKind
 			}
 			return runVerify(cmd.Context(), cmd.OutOrStdout(), rootEnv.paths, cfg, kind, timeout)
 		},

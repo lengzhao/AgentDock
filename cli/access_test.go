@@ -36,8 +36,8 @@ func TestAdditionalOwnerStatusDoesNotCompletePrimarySetup(t *testing.T) {
 	rootEnv = &env{paths: config.ResolvePaths(t.TempDir())}
 	t.Cleanup(func() { rootEnv = previous })
 	cfg := config.Default()
-	cfg.Platform.AppIDRef = "env:LARK_ID"
-	cfg.Platform.AppSecretRef = "env:LARK_SECRET"
+	cfg.Platforms[0].AppIDRef = "env:LARK_ID"
+	cfg.Platforms[0].AppSecretRef = "env:LARK_SECRET"
 	cfg.Agents = []config.Agent{{ID: "agent", Command: []string{"agent"}}}
 	cfg.Runtime.DefaultAgent = "agent"
 	cfg.UpsertPlatform(config.Platform{Kind: "weixin", Credentials: map[string]string{"id": "env:WX_ID", "secret": "env:WX_TOKEN"}})

@@ -24,7 +24,7 @@ import (
 )
 
 // Version is the current config schema version.
-const Version = 1
+const Version = 2
 
 // DefaultPlatformKind is used when Platform.Kind is empty.
 const DefaultPlatformKind = "lark"
@@ -36,14 +36,13 @@ const EnvHome = "AGENTDOCK_HOME"
 // Config is the whole user configuration.
 type Config struct {
 	Scheduling Scheduling `yaml:"schedule,omitempty"`
-	// Platforms are additional connections; Platform preserves the primary legacy connection.
-	Platforms []Platform `yaml:"platforms,omitempty"`
-	Version   int        `yaml:"version"`
-	InstallID string     `yaml:"installId"`
-	Platform  Platform   `yaml:"platform"`
-	Agents    []Agent    `yaml:"agents"`
-	Runtime   Runtime    `yaml:"runtime"`
-	Service   Service    `yaml:"service"`
+	Platforms  []Platform `yaml:"platforms,omitempty"`
+	PrimaryKind string    `yaml:"primaryKind,omitempty"`
+	Version    int        `yaml:"version"`
+	InstallID  string     `yaml:"installId"`
+	Agents     []Agent    `yaml:"agents"`
+	Runtime    Runtime    `yaml:"runtime"`
+	Service    Service    `yaml:"service"`
 }
 
 // Scheduling configures the shared timer service. Disabled is explicit so older
@@ -141,10 +140,11 @@ type Service struct {
 // Default returns a config with sane defaults for a fresh install.
 func Default() Config {
 	return Config{
-		Version:   Version,
-		InstallID: NewInstallID(),
-		Platform: Platform{
-			Kind: DefaultPlatformKind,
+		Version:     Version,
+		InstallID:   NewInstallID(),
+		PrimaryKind: DefaultPlatformKind,
+		Platforms: []Platform{
+			{Kind: DefaultPlatformKind},
 		},
 		Runtime: Runtime{
 			SessionScope:       "thread",
@@ -299,8 +299,19 @@ func (c *Config) applyDefaults() {
 	if c.Version == 0 {
 		c.Version = Version
 	}
-	if c.Platform.Kind == "" {
-		c.Platform.Kind = DefaultPlatformKind
+	if len(c.Platforms) == 0 {
+		c.Platforms = []Platform{{Kind: DefaultPlatformKind}}
+	}
+	for i := range c.Platforms {
+		if c.Platforms[i].Kind == "" {
+			c.Platforms[i].Kind = DefaultPlatformKind
+		}
+	}
+	if c.PrimaryKind == "" {
+		c.PrimaryKind = c.Platforms[0].Kind
+	}
+	if _, ok := c.Connection(c.PrimaryKind); !ok {
+		c.Platforms = append([]Platform{{Kind: c.PrimaryKind}}, c.Platforms...)
 	}
 	if c.Runtime.SessionScope == "" {
 		c.Runtime.SessionScope = "thread"
@@ -340,39 +351,23 @@ func (c Config) Validate() error {
 	if c.InstallID == "" {
 		return errors.New("installId is required")
 	}
-	if !platformName.MatchString(c.Platform.Kind) {
-		return errors.New("platform.kind must be a simple lowercase name")
+	if c.PrimaryKind == "" {
+		return errors.New("primaryKind is required")
 	}
-	switch c.Platform.Kind {
-	case "lark", "feishu", "weixin":
-	default:
-		if c.Platform.AuthPlugin == "" || strings.TrimSpace(c.Platform.Kind) == "" {
-			return fmt.Errorf("platform.kind requires a registered auth plugin for %q", c.Platform.Kind)
+	if len(c.Platforms) == 0 {
+		return errors.New("at least one platform is required")
+	}
+	if _, ok := c.Connection(c.PrimaryKind); !ok {
+		return fmt.Errorf("primaryKind %q is not configured", c.PrimaryKind)
+	}
+	seenPlatforms := map[string]bool{}
+	for _, connection := range c.Platforms {
+		if seenPlatforms[connection.Kind] {
+			return fmt.Errorf("platforms contains duplicate platform %q", connection.Kind)
 		}
-	}
-	if len(c.Platform.Credentials) > 0 && (c.Platform.AppIDRef != "" || c.Platform.AppSecretRef != "") {
-		return errors.New("platform.credentials cannot be combined with legacy app references")
-	}
-	for name, value := range c.Platform.Settings {
-		if LooksLikeSecretName(name) && value != "" {
-			return errors.New("platform.settings must not contain credential values; use platform.credentials references")
-		}
-	}
-	refs := c.Platform.References()
-	if len(c.Platform.Credentials) == 0 {
-		if _, err := credentials.ParseRef(c.Platform.AppIDRef); err != nil {
-			return fmt.Errorf("platform.appIdRef: %w", err)
-		}
-		if _, err := credentials.ParseRef(c.Platform.AppSecretRef); err != nil {
-			return fmt.Errorf("platform.appSecretRef: %w", err)
-		}
-	}
-	if refs["id"] == "" || refs["secret"] == "" {
-		return errors.New("platform.credentials requires id and secret references")
-	}
-	for role, ref := range refs {
-		if _, err := credentials.ParseRef(ref); err != nil {
-			return fmt.Errorf("platform credential role %q must be a valid reference", role)
+		seenPlatforms[connection.Kind] = true
+		if err := validatePlatform(connection); err != nil {
+			return fmt.Errorf("platforms[%s]: %w", connection.Kind, err)
 		}
 	}
 	if len(c.Agents) == 0 {
@@ -422,17 +417,43 @@ func (c Config) Validate() error {
 	if c.Service.ThrottleSeconds < 0 {
 		return errors.New("service.throttleSeconds must not be negative")
 	}
-	seenPlatforms := map[string]bool{c.Platform.Kind: true}
-	for _, connection := range c.Platforms {
-		if seenPlatforms[connection.Kind] {
-			return fmt.Errorf("platforms contains duplicate platform %q", connection.Kind)
+	return nil
+}
+
+func validatePlatform(p Platform) error {
+	if !platformName.MatchString(p.Kind) {
+		return errors.New("platform.kind must be a simple lowercase name")
+	}
+	switch p.Kind {
+	case "lark", "feishu", "weixin":
+	default:
+		if p.AuthPlugin == "" || strings.TrimSpace(p.Kind) == "" {
+			return fmt.Errorf("platform.kind requires a registered auth plugin for %q", p.Kind)
 		}
-		seenPlatforms[connection.Kind] = true
-		candidate := c
-		candidate.Platform = connection
-		candidate.Platforms = nil
-		if err := candidate.Validate(); err != nil {
-			return fmt.Errorf("platforms[%s]: %w", connection.Kind, err)
+	}
+	if len(p.Credentials) > 0 && (p.AppIDRef != "" || p.AppSecretRef != "") {
+		return errors.New("platform.credentials cannot be combined with legacy app references")
+	}
+	for name, value := range p.Settings {
+		if LooksLikeSecretName(name) && value != "" {
+			return errors.New("platform.settings must not contain credential values; use platform.credentials references")
+		}
+	}
+	refs := p.References()
+	if len(p.Credentials) == 0 {
+		if _, err := credentials.ParseRef(p.AppIDRef); err != nil {
+			return fmt.Errorf("platform.appIdRef: %w", err)
+		}
+		if _, err := credentials.ParseRef(p.AppSecretRef); err != nil {
+			return fmt.Errorf("platform.appSecretRef: %w", err)
+		}
+	}
+	if refs["id"] == "" || refs["secret"] == "" {
+		return errors.New("platform.credentials requires id and secret references")
+	}
+	for role, ref := range refs {
+		if _, err := credentials.ParseRef(ref); err != nil {
+			return fmt.Errorf("platform credential role %q must be a valid reference", role)
 		}
 	}
 	return nil
@@ -487,17 +508,60 @@ func (p Platform) LoginKind() string {
 
 var platformName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
-// Connections returns the primary connection followed by additional platforms.
-func (c Config) Connections() []Platform {
-	return append([]Platform{c.Platform}, c.Platforms...)
+// Primary returns the configured primary platform connection.
+func (c Config) Primary() Platform {
+	if p, ok := c.Connection(c.PrimaryKind); ok {
+		return p
+	}
+	if len(c.Platforms) > 0 {
+		return c.Platforms[0]
+	}
+	return Platform{Kind: DefaultPlatformKind}
 }
 
-// Connection finds a configured platform. Empty selects the primary connection.
+// AdditionalPlatforms lists non-primary connections.
+func (c Config) AdditionalPlatforms() []Platform {
+	out := make([]Platform, 0, len(c.Platforms))
+	for _, p := range c.Platforms {
+		if p.Kind != c.PrimaryKind {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// AsSinglePlatform returns a copy that treats kind as the only connection.
+func (c Config) AsSinglePlatform(kind string) Config {
+	p, ok := c.Connection(kind)
+	if !ok {
+		return c
+	}
+	out := c
+	out.PrimaryKind = p.Kind
+	out.Platforms = []Platform{p}
+	return out
+}
+
+// Connections returns the primary connection followed by additional platforms.
+func (c Config) Connections() []Platform {
+	out := make([]Platform, 0, len(c.Platforms))
+	if p, ok := c.Connection(c.PrimaryKind); ok {
+		out = append(out, p)
+	}
+	for _, p := range c.Platforms {
+		if p.Kind != c.PrimaryKind {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Connection finds a configured platform. Empty kind selects the primary connection.
 func (c Config) Connection(kind string) (Platform, bool) {
 	if kind == "" {
-		return c.Platform, true
+		kind = c.PrimaryKind
 	}
-	for _, p := range c.Connections() {
+	for _, p := range c.Platforms {
 		if p.Kind == kind {
 			return p, true
 		}
@@ -508,15 +572,19 @@ func (c Config) Connection(kind string) (Platform, bool) {
 // UpsertPlatform adds or updates only the selected platform. The first login
 // fills the default unconfigured primary slot; later logins preserve it.
 func (c *Config) UpsertPlatform(p Platform) {
-	if c.Platform.Kind == p.Kind || (c.Platform.References()["id"] == "" && len(c.Platforms) == 0) {
-		c.Platform = p
-		return
+	if p.Kind == "" {
+		p.Kind = DefaultPlatformKind
 	}
 	for i, existing := range c.Platforms {
 		if existing.Kind == p.Kind {
 			c.Platforms[i] = p
 			return
 		}
+	}
+	if len(c.Platforms) == 1 && c.Platforms[0].References()["id"] == "" {
+		c.Platforms[0] = p
+		c.PrimaryKind = p.Kind
+		return
 	}
 	c.Platforms = append(c.Platforms, p)
 }
