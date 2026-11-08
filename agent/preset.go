@@ -14,12 +14,12 @@ type Preset struct {
 	Aliases        []string
 	LoginHint      string
 	OfflineCommand []string
-	AuthMethod string
-	Resolve    func() (config.Agent, error)
+	AuthMethod     string
+	Resolve        func() (config.Agent, error)
 }
 
 var (
-	presetsByID    = map[string]Preset{}
+	presetsByID     = map[string]Preset{}
 	presetAliasToID = map[string]string{}
 )
 

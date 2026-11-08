@@ -35,14 +35,14 @@ const EnvHome = "AGENTDOCK_HOME"
 
 // Config is the whole user configuration.
 type Config struct {
-	Scheduling Scheduling `yaml:"schedule,omitempty"`
-	Platforms  []Platform `yaml:"platforms,omitempty"`
-	PrimaryKind string    `yaml:"primaryKind,omitempty"`
-	Version    int        `yaml:"version"`
-	InstallID  string     `yaml:"installId"`
-	Agents     []Agent    `yaml:"agents"`
-	Runtime    Runtime    `yaml:"runtime"`
-	Service    Service    `yaml:"service"`
+	Scheduling  Scheduling `yaml:"schedule,omitempty"`
+	Platforms   []Platform `yaml:"platforms,omitempty"`
+	PrimaryKind string     `yaml:"primaryKind,omitempty"`
+	Version     int        `yaml:"version"`
+	InstallID   string     `yaml:"installId"`
+	Agents      []Agent    `yaml:"agents"`
+	Runtime     Runtime    `yaml:"runtime"`
+	Service     Service    `yaml:"service"`
 }
 
 // Scheduling configures the shared timer service. Disabled is explicit so older
@@ -185,27 +185,27 @@ func Home() (string, error) {
 type Paths struct {
 	Home string
 	// InstanceDir is the runtime root: agent workspace, session logs and state.
-	InstanceDir string
+	InstanceDir      string
 	ConfigFile       string
 	AgentPresetsFile string
 	StateDir         string
-	LogDir      string
-	CacheDir    string
-	RunDir      string
+	LogDir           string
+	CacheDir         string
+	RunDir           string
 }
 
 // ResolvePaths returns the layout under home, creating nothing.
 func ResolvePaths(home string) Paths {
 	instance := filepath.Join(home, "instance")
 	return Paths{
-		Home:        home,
-		InstanceDir: instance,
+		Home:             home,
+		InstanceDir:      instance,
 		ConfigFile:       filepath.Join(home, "config.yaml"),
 		AgentPresetsFile: filepath.Join(home, "agent-presets.json"),
 		StateDir:         filepath.Join(instance, "state"),
-		LogDir:      filepath.Join(home, "logs"),
-		CacheDir:    filepath.Join(home, "cache"),
-		RunDir:      filepath.Join(home, "run"),
+		LogDir:           filepath.Join(home, "logs"),
+		CacheDir:         filepath.Join(home, "cache"),
+		RunDir:           filepath.Join(home, "run"),
 	}
 }
 

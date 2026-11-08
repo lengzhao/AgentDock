@@ -20,7 +20,7 @@ func onboardWelcome(resumeFrom string) error {
 	return huh.NewForm(
 		huh.NewGroup(huh.NewNote().
 			Title("AgentDock onboard").
-			Description(body+"\n\nPress Continue when ready. Platform login may print a QR code in this terminal afterward."),
+			Description(body + "\n\nPress Continue when ready. Platform login may print a QR code in this terminal afterward."),
 		),
 	).WithShowHelp(true).Run()
 }
