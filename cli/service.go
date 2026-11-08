@@ -3,11 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/lengzhao/AgentDock/assembly"
-	"github.com/lengzhao/AgentDock/plugin"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/lengzhao/AgentDock/assembly"
+	"github.com/lengzhao/AgentDock/plugin"
 
 	"github.com/spf13/cobra"
 
@@ -174,7 +175,7 @@ func serviceSpec(cfg config.Config) (service.Spec, error) {
 	}, nil
 }
 
-func markStep(cmd *cobra.Command, step setup.Step) error {
+func markStep(_ *cobra.Command, step setup.Step) error {
 	state, err := setup.LoadState(rootEnv.paths)
 	if err != nil {
 		return err
