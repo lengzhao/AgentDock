@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/lengzhao/AgentDock/assembly"
 	"github.com/lengzhao/AgentDock/plugin"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/lengzhao/AgentDock/config"
 	"github.com/lengzhao/AgentDock/service"
-	"github.com/lengzhao/AgentDock/setup"
 )
 
 func newServiceCmd() *cobra.Command {
@@ -27,24 +25,8 @@ func newServiceCmd() *cobra.Command {
 			Use:   "install",
 			Short: "Install and start the user-level service",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return withService(cmd, func(ctx context.Context, mgr service.ServiceManager, cfg config.Config) error {
-					spec, err := serviceSpec(cfg)
-					if err != nil {
-						return err
-					}
-					if err := mgr.Install(ctx, spec); err != nil {
-						return err
-					}
-					if err := mgr.Start(ctx); err != nil {
-						return err
-					}
-					st, err := service.WaitRunning(ctx, mgr, 20*time.Second)
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(cmd.OutOrStdout(), "Service %s running (pid %d).\n", spec.Label, st.PID)
-					fmt.Fprintf(cmd.OutOrStdout(), "Logs: %s\n", filepath.Join(spec.LogDir, "service.err.log"))
-					return markStep(cmd, setup.StepService)
+				return withService(cmd, func(ctx context.Context, _ service.ServiceManager, cfg config.Config) error {
+					return installAndStartService(ctx, cmd.OutOrStdout(), rootEnv.paths, cfg)
 				})
 			},
 		},
@@ -173,14 +155,6 @@ func serviceSpec(cfg config.Config) (service.Spec, error) {
 		KeepAlive:       cfg.Service.KeepAlive,
 		ThrottleSeconds: cfg.Service.ThrottleSeconds,
 	}, nil
-}
-
-func markStep(_ *cobra.Command, step setup.Step) error {
-	state, err := setup.LoadState(rootEnv.paths)
-	if err != nil {
-		return err
-	}
-	return state.MarkDone(rootEnv.paths, step)
 }
 
 func assembleService(label string) (service.ServiceManager, error) {

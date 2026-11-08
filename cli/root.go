@@ -105,6 +105,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&rootEnv.serviceKind, "service-plugin", plugin.KindServiceLaunchd, "registered service plugin kind")
 	cmd.PersistentFlags().StringVar(&rootEnv.catalogKind, "catalog-plugin", plugin.KindCatalogACPRegistry, "registered catalog plugin kind")
 	cmd.AddCommand(
+		newOnboardCmd(),
 		newSetupCmd(),
 		newRunCmd(),
 		newServiceCmd(),

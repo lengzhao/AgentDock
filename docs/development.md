@@ -10,12 +10,13 @@ git clone git@github.com:lengzhao/AgentDock.git
 cd AgentDock
 go build -o bin/agentdock ./cmd/agentdock
 
-# 引导：选 Agent + 存平台凭据（secret 从 stdin 或交互输入读取）
-bin/agentdock setup --agent claude-acp --app-id cli_xxx --app-secret-stdin
+# 推荐：一条龙引导（TTY 下为 TUI；进度写入 setup.json，可中断续跑）
+bin/agentdock onboard
 
-# 前台运行 / 后台运行
-bin/agentdock run
+# 或分步：选 Agent + 存平台凭据（secret 从 stdin 或交互输入读取）
+bin/agentdock setup --agent claude --app-id cli_xxx --app-secret-stdin
 bin/agentdock service install
+bin/agentdock verify
 ```
 
 数据目录默认 `~/.agentdock`（可用 `--home` 或 `AGENTDOCK_HOME` 覆盖）：
@@ -34,7 +35,8 @@ bin/agentdock service install
 
 | 模块 | 位置 | 说明 |
 |---|---|---|
-| CLI 命令树 | `cli` | `setup` / `run` / `service` / `status` / `doctor` / `verify` / `catalog` / `agents` / `tasks` / `access` / `config` / `version` |
+| CLI 命令树 | `cli` | `onboard` / `setup` / `run` / `service` / `status` / `doctor` / `verify` / `catalog` / `agents` / `tasks` / `access` / `config` / `version` |
+| 引导 TUI | `cli/onboard_*.go` | `onboard` 编排 setup 六步；TTY 用 charm `huh` 表单；`setup` 保留给脚本与非交互 |
 | 配置 | `config` | 模型 + 校验 + 原子写（0600）；`KnownFields` 拒绝未知字段；secret 只能写引用，裸值直接报错 |
 | 凭据槽位 | `credentials` | `Store` 接口 + keyring（`zalando/go-keyring`，写后强制回读）+ memory；`Resolver` 支持 `keyring://svc/account` 与 `env:NAME` |
 | 服务槽位 | `service` | `ServiceManager` 接口 + launchd 实现（plist 渲染、`bootstrap/bootout/kickstart/print` 语义归一化、拒绝把 secret 写进 plist） |

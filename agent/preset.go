@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/lengzhao/AgentDock/config"
@@ -72,6 +73,21 @@ func NormalizeID(id string) string {
 		}
 	}
 	return id
+}
+
+// PresetByID reports whether a preset is registered.
+func PresetByID(id string) (Preset, bool) {
+	return presetFor(id)
+}
+
+// PresetIDs returns registered preset ids in sorted order.
+func PresetIDs() []string {
+	ids := make([]string, 0, len(presetsByID))
+	for id := range presetsByID {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // LoginHint names the upstream login command without running it.
